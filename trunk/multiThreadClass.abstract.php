@@ -59,7 +59,7 @@ abstract class multiThread {
 	 * 
 	 ********************************************************************** */
 	//Here's the list of methods that need to be declared in the classes that extend this one.
-	#abstract protected function get_child_pids();
+	abstract protected function dead_child_handler($childNum);
 	
 	
 	
@@ -134,7 +134,7 @@ abstract class multiThread {
 		 * removed.
 		 */
 		declare(ticks=1);
-		register_tick_function(array($this, 'sanity_check'), $this->myPid);
+		register_tick_function(array($this, 'sanity_check'));
 	}//end __construct()
 	//=========================================================================
 	
@@ -440,6 +440,9 @@ abstract class multiThread {
 	
 	
 	//=========================================================================
+	/**
+	 * Remove any dead children.
+	 */
 	public function clean_children() {
 		$retval = 0;
 		if(is_array($this->childArr) && $this->is_parent()) {
@@ -451,7 +454,8 @@ abstract class multiThread {
 					unset($this->childArr[$childNum]);
 					$this->availableSlots[$childNum] = $pid;
 					
-					//TODO: to keep spawning with only a certain range of numbers, i.e. 0-4, keep an array of freed slots here.
+					//tell the parent to handle the dead child.
+					$this->dead_child_handler($childNum);
 				}
 				else {
 					$retval++;
@@ -468,6 +472,10 @@ abstract class multiThread {
 	
 	
 	//=========================================================================
+	/**
+	 * Handler for child death.  NOTE: need to be able to report to the extending 
+	 * class which child actually died.
+	 */
 	public function child_death() {
 		if($this->is_parent()) {
 			$this->message_handler(__METHOD__, "Saw child die... calling the cleaning process...");
