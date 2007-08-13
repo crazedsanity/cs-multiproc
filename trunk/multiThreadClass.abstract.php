@@ -10,7 +10,7 @@
  */
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
-require_once(dirname(__FILE__) .'/../cs-content/cs_globalFunctions.php');
+require_once(dirname(__FILE__) .'/../base/globalFunctions.php');
 
 abstract class multiThread {
 	
@@ -229,7 +229,7 @@ abstract class multiThread {
 				$killingSpree = 0;
 				foreach($this->childArr as $num => $childPid) {
 					$this->message_handler(__METHOD__, "parent process: killing child #$num ($childPid)");
-					posix_kill($childPid, SIGTERM);
+					posix_kill($childPid, SIGKILL);
 					$this->child_is_dead($childPid, TRUE);
 					$killingSpree++;
 				}
@@ -376,10 +376,13 @@ abstract class multiThread {
 	private function spawn_child($childNum) {
 		
 		if($this->is_child()) {
-			$this->message_handler(__METHOD__, "Child attempted to spawn more children!!!");
+			$this->message_handler(__METHOD__, "Child attempted to spawn more children!!!", TRUE);
+		}
+		elseif(isset($this->childArr[$childNum])) {
+			$this->message_handler(__METHOD__, "Attempted to create child in a used slot", TRUE);
 		}
 		elseif(is_null($childNum) || !is_numeric($childNum)) {
-			$this->message_handler(__METHOD__, "Cannot create child without a valid childNum (". $childNum .")");
+			$this->message_handler(__METHOD__, "Cannot create child without a valid childNum (". $childNum .")", TRUE);
 		}
 		
 		//NOTE: *EACH* process should have this set.
@@ -544,6 +547,14 @@ abstract class multiThread {
 		$this->spawn_child($slotNum);
 		
 	}//end spawn()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	protected function get_property($name) {
+		return($this->$name);
+	}//end get_property()
 	//=========================================================================
 	
 	
