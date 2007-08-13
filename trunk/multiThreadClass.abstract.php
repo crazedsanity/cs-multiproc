@@ -112,6 +112,7 @@ abstract class multiThread {
 		pcntl_signal(SIGTERM, array($this, "kill_children"));
 		pcntl_signal(SIGUSR1, array($this, "kill_children"));
 		pcntl_signal(SIGHUP, array($this, "kill_children"));
+		pcntl_signal(SIGINT, array($this, "kill_children"));
 		pcntl_signal(SIGCHLD, array($this, "child_death"));
 		
 		
@@ -236,10 +237,7 @@ abstract class multiThread {
 				$this->message_handler(__METHOD__, "parent process: done killing children, killed (". $killingSpree .") of them");
 			}
 		}
-		else {
-			#$this->message_handler(__METHOD__, "Child encountered fatal message, dying");
-			exit(0);
-		}
+		exit(0);
 		
 		
 	}//end kill_children()
