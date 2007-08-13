@@ -2,10 +2,10 @@
 /*
  * Created on Aug 9, 2007
  * 
- * SVN Signature::::::: $Id: multiThreadClass.abstract.php 11383 2007-08-10 18:19:14Z danf $
- * Last Committed Date: $Date: 2007-08-10 13:19:14 -0500 (Fri, 10 Aug 2007) $
- * Last Committed Path: $HeadURL: svn://hugs.pl.internal/pl/website/branches/new_inventory_mgmt/lib/abstract/multiThreadClass.abstract.php $
- * Current Revision:::: $Revision: 11383 $
+ * SVN Signature::::::: $Id$
+ * Last Committed Date: $Date$
+ * Last Committed Path: $HeadURL$
+ * Current Revision:::: $Revision$
  * 
  */
 
