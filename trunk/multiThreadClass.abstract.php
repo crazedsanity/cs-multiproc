@@ -7,6 +7,10 @@
  * Last Committed Path: $HeadURL$
  * Current Revision:::: $Revision$
  * 
+ * TODO: add proper headers for all methods
+ * TODO: enable multiple queues, so one parent can process multiple children in different queues for different tasks.
+ * TODO: child lockfiles
+ * TODO: check that the lockfile has the proper PID in it, die if not (another test for "sanity_check()").
  */
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
