@@ -299,7 +299,7 @@ abstract class multiThread {
 	/**
 	 * Creates a lockfile to avoid other processes from tripping over this one.
 	 */
-	protected function create_lockfile($name, $minutesToWait=NULL) {
+	private function create_lockfile($name, $minutesToWait=NULL) {
 		$lockfileExists = $this->check_lockfile();
 		$goodToGo = FALSE;
 		if($lockfileExists) {
@@ -552,6 +552,8 @@ abstract class multiThread {
 		$this->message_handler(__METHOD__, "Pulled slot #". $slotNum .", previously used by (". $oldProc .")");
 		$this->spawn_child($slotNum);
 		
+		return($slotNum);
+		
 	}//end spawn()
 	//=========================================================================
 	
@@ -564,6 +566,63 @@ abstract class multiThread {
 	//=========================================================================
 	
 	
+	
+	//=========================================================================
+	protected function wait_for_children() {
+		if($this->is_parent()) {
+			while(count($this->childArr) != 0) {
+				$this->clean_children();
+				usleep(500);
+			}
+		}
+		else {
+			$this->message_handler(__METHOD__, "Called by a child... your script has gone wonky", TRUE);
+		}
+	}//end wait_for_children()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	private function remove_lockfile() {
+		if($this->is_parent()) {
+			$this->fsObj->cd("/");
+			$lsData = $this->fsObj->ls();
+			if(is_array($lsData[$this->lockfile])) {
+				$removeResult = $this->fsObj->rm($this->lockfile);
+				$this->message_handler(__METHOD__, "Successfully removed lockfile");
+			}
+			else {
+				$this->message_handler(__METHOD__, "Could not find lockfile?", TRUE);
+			}
+		}
+		else {
+			$this->message_handler(__METHOD__, "Child attempted to remove the lockfile", TRUE);
+		}
+	}//end remove_lockfile()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	protected function finished() {
+		if($this->is_parent()) {
+			//wait for the children to finish-up.
+			$this->wait_for_children();
+			
+			//stop doing stuff as ticks happen, so we don't "die abnormally" due
+			//	to a missing lockfile.
+			unregister_tick_function();
+			
+			//drop the lockfile, tell 'em what happened, and die.
+			$this->remove_lockfile();
+		}
+		
+		$this->message_handler(__METHOD__, "All done!");
+		
+		exit(0);
+	}//end finished()
+	//=========================================================================
 	
 }
 
