@@ -55,7 +55,11 @@ abstract class multiThread {
 	/** Array of slots, numerically index up to ($maxChildren - 1), holding PID of it's previous child, or NULL if unused. */
 	private $availableSlots=array();
 	
+	/** The default queue name (the first queue specified to "set_max_children()") */
+	private $defaultQueue=NULL;
 	
+	/** Links PID's to queue names. */
+	private $pid2queue=array();
 	
 	/* ************************************************************************
 	 * 
@@ -63,8 +67,13 @@ abstract class multiThread {
 	 * 
 	 ********************************************************************** */
 	//Here's the list of methods that need to be declared in the classes that extend this one.
-	abstract protected function dead_child_handler($childNum);
 	
+	/**
+	 * Should handle the given child number within the given queue's death: any 
+	 * cleanup that needs to be done, or processing of output files, etc. should 
+	 * be done within this method.
+	 */
+	abstract protected function dead_child_handler($childNum, $qName);
 	
 	
 	
@@ -232,11 +241,13 @@ abstract class multiThread {
 		if($this->is_parent()) {
 			if(is_array($this->childArr) && count($this->childArr)) {
 				$killingSpree = 0;
-				foreach($this->childArr as $num => $childPid) {
-					$this->message_handler(__METHOD__, "parent process: killing child #$num ($childPid)");
-					posix_kill($childPid, SIGKILL);
-					$this->child_is_dead($childPid, TRUE);
-					$killingSpree++;
+				foreach($this->childArr as $queue => $subData) {
+						foreach($subData as $num=>$childPid) {
+						$this->message_handler(__METHOD__, "parent process: killing child in queue=". $queue .", #$num ($childPid)");
+						posix_kill($childPid, SIGKILL);
+						$this->child_is_dead($childPid, TRUE);
+						$killingSpree++;
+					}
 				}
 				$this->message_handler(__METHOD__, "parent process: done killing children, killed (". $killingSpree .") of them");
 			}
@@ -375,16 +386,19 @@ abstract class multiThread {
 	 * 
 	 * TODO: give a $childNum=NULL argument; if it's numeric, then spawn a new one if that child died, or do nothing (?).
 	 */
-	private function spawn_child($childNum) {
+	private function spawn_child($childNum, $queue) {
 		
 		if($this->is_child()) {
 			$this->message_handler(__METHOD__, "Child attempted to spawn more children!!!", TRUE);
 		}
-		elseif(isset($this->childArr[$childNum])) {
-			$this->message_handler(__METHOD__, "Attempted to create child in a used slot", TRUE);
+		elseif(isset($this->childArr[$queue][$childNum])) {
+			$this->message_handler(__METHOD__, "Attempted to create child in a used slot (". $childNum ."), queue=(". $queue ."): used by (". $this->childArr[$queue][$childNum] .")", TRUE);
 		}
 		elseif(is_null($childNum) || !is_numeric($childNum)) {
 			$this->message_handler(__METHOD__, "Cannot create child without a valid childNum (". $childNum .")", TRUE);
+		}
+		elseif(is_null($queue) || !strlen($queue) || !isset($this->availableSlots[$queue])) {
+			$this->message_handler(__METHOD__, "Invalid queue name given (". $queue .")", TRUE);
 		}
 		
 		//NOTE: *EACH* process should have this set.
@@ -397,12 +411,13 @@ abstract class multiThread {
 			if($pid) {
 				//PARENT PROCESS!!!
 				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid);
-				$this->childArr[$childNum] = $pid;
+				$this->childArr[$queue][$childNum] = $pid;
+				$this->pid2queue[$pid] = $queue;
 			}
 			else {
 				//CHILD PROCESS!!!
 				$this->childArr = NULL;
-				$this->myPid = $pid;
+				$this->myPid = posix_getpid();
 				$this->childNum = $childNum;
 				$this->message_handler(__METHOD__, "should be child #". $childNum);
 			}
@@ -426,10 +441,10 @@ abstract class multiThread {
 			$checkIt = pcntl_waitpid($pid, $actualStatus, WNOHANG OR WUNTRACED);
 		}
 		
-		#$this->message_handler(__METHOD__, "RESULT: (". $checkIt .")");
+		$qName = $this->pid2queue[$pid];
 		if($checkIt == $pid) {
 			$retval = TRUE;
-			$this->message_handler(__METHOD__, "Child appears dead (". $checkIt ."), status=(". $actualStatus .")...?");
+			$this->message_handler(__METHOD__, "Child appears dead (". $checkIt .") in queue (". $qName ."), status=(". $actualStatus .")...?");
 		}
 		elseif($checkIt != $pid && $checkIt > 0) {
 			$this->message_handler(__METHOD__, "returned value doesn't equal pid (". $checkIt ." != ". $pid ."), status=(". $actualStatus .")", TRUE);
@@ -446,21 +461,23 @@ abstract class multiThread {
 	 * Remove any dead children.
 	 */
 	public function clean_children() {
-		$retval = 0;
+		$retval = array();
 		if(is_array($this->childArr) && $this->is_parent()) {
-			foreach($this->childArr as $childNum=>$pid) {
-				//check if the kid is still breathing.
-				if($this->child_is_dead($pid)) {
-					$this->message_handler(__METHOD__, "Found child #". $childNum ." with pid (". $pid .") dead... CHECK IT!!!!");
-					
-					unset($this->childArr[$childNum]);
-					$this->availableSlots[$childNum] = $pid;
-					
-					//tell the parent to handle the dead child.
-					$this->dead_child_handler($childNum);
-				}
-				else {
-					$retval++;
+			foreach($this->childArr as $qName=>$subData) {
+				foreach($subData as $childNum=>$pid) {
+					//check if the kid is still breathing.
+					if($this->child_is_dead($pid)) {
+						$this->message_handler(__METHOD__, "Found child #". $childNum ." of queue (". $qName .") with pid (". $pid .") dead");
+						
+						unset($this->childArr[$qName][$childNum]);
+						$this->availableSlots[$qName][$childNum] = $pid;
+						
+						//tell the parent to handle the dead child.
+						$this->dead_child_handler($childNum, $qName);
+					}
+					else {
+						$retval[$qName]++;
+					}
 				}
 			}
 		}
@@ -494,19 +511,30 @@ abstract class multiThread {
 	
 	//=========================================================================
 	/**
-	 * A way to set the private "maxChildren" property.
+	 * A way to set the private "maxChildren" property.  NOTE: when creating 
+	 * multiple queues, this method must be called multiple times, one for 
+	 * each queue.  
 	 */
-	protected function set_max_children($number) {
-		if($this->is_parent()) {
-			$this->maxChildren=$number;
+	protected function set_max_children($maxChildren, $queue=0) {
+		if(isset($this->availableSlots[$queue])) {
+			$this->message_handler(__METHOD__, "Queue already exists (". $queue .")", TRUE);
+		}
+		elseif($this->is_parent()) {
+			if(!is_array($this->maxChildren)) {
+				$this->maxChildren = array();
+				$this->defaultQueue = $queue;
+			}
+			$this->maxChildren[$queue]=$maxChildren;
 			
 			//dirty way of remembering which slots are free... but it's fast.
-			for($i=0; $i<$number; $i++) {
-				$this->availableSlots[$i] = "uninitialized";
+			$this->availableSlots[$queue] = array();
+			for($x=0; $x<$maxChildren; $x++) {
+				$this->availableSlots[$queue][$x] = 'uninitialized';
 			}
+			$this->message_handler(__METHOD__, "availableSlots: ". $this->gfObj->debug_print($this->availableSlots,0));
 		}
 		else {
-			$this->message_handler(__METHOD__, "FATAL: child trying to change maxChildren to (". $number .")", TRUE);
+			$this->message_handler(__METHOD__, "FATAL: child trying to change maxChildren to (". $maxChildren .") for queue (". $queue .")", TRUE);
 		}
 	}//end set_max_children()
 	//=========================================================================
@@ -515,46 +543,54 @@ abstract class multiThread {
 	
 	//=========================================================================
 	/**
-	 * Spawn another child, up to $this->maxChildren; if there's already that 
+	 * Spawn another child, up to $this->maxChildren[$queue]; if there's already that 
 	 * many children, it will continuously scan them until one slot is freed 
 	 * before doing so.
 	 */
-	protected function spawn() {
+	protected function spawn($queue=NULL) {
+		if(is_null($queue)) {
+			$queue = $this->defaultQueue;
+		}
+		
 		$livingChildren = $this->clean_children();
-		if($livingChildren > $this->maxChildren) {
-			$this->message_handler(__METHOD__, "Too many children spawned (". $livingChildren ."/". $this->maxChildren .")", TRUE);
+		$livingChildren = $livingChildren[$queue];
+		if($livingChildren > $this->maxChildren[$queue]) {
+			$this->message_handler(__METHOD__, "Too many children spawned (". $livingChildren ."/". $this->maxChildren[$queue] .")", TRUE);
 		}
-		elseif(!is_numeric($this->maxChildren) || $this->maxChildren < 1) {
-			$this->message_handler(__METHOD__, "maxChildren not set, can't spawn", TRUE);
+		elseif(!is_numeric($this->maxChildren[$queue]) || $this->maxChildren[$queue] < 1) {
+			$this->gfObj->debug_print(__METHOD__, $this->gfObj->debug_print($this->maxChildren,0));
+			$this->message_handler(__METHOD__, "maxChildren not set for queue=(". $queue ."), can't spawn", TRUE);
 		}
-		elseif(!is_array($this->availableSlots) || count($this->availableSlots) > $this->maxChildren) {
+		elseif(!is_array($this->availableSlots) || count($this->availableSlots) > $this->maxChildren[$queue]) {
 			$this->message_handler(__METHOD__, "Invalid availableSlots... something terrible happened", TRUE);
 		}
 		
 		$numLoops = 0;
 		$totalLoops = 0;
-		if($livingChildren >= $this->maxChildren) {
-			$this->message_handler(__METHOD__, "Too many children");
-			while($livingChildren >= $this->maxChildren) {
+		if($livingChildren >= $this->maxChildren[$queue]) {
+			$this->message_handler(__METHOD__, "Too many children in queue=(". $queue ."): (". $livingChildren ."/". $this->maxChildren[$queue] .")");
+			$this->message_handler(__METHOD__, "PID's of children: ". $this->gfObj->debug_print($this->childArr[$queue],0));
+			while($livingChildren >= $this->maxChildren[$queue]) {
 				//wait for a full minute before saying we're still waiting.
 				//TODO: add something like a per-child timeout, just in case.
 				if($numLoops >= 60) {
-					$this->message_handler(__METHOD__, "Waiting to spawn new child, time slept=(". $totalLoops .")");
+					$this->message_handler(__METHOD__, "Waiting to spawn new child for queue=(". $queue ."), time slept=(". $totalLoops .")");
 					$numLoops = 0;
 				}
 				sleep(1);
 				$numLoops++;
 				$totalLoops++;
 				$livingChildren = $this->clean_children();
+				$livingChildren = $livingChildren[$queue];
 			}
 		}
 		
 		//made it this far... spawn a new child!
-		$slotNum = array_shift(array_keys($this->availableSlots));
-		$oldProc = $this->availableSlots[$slotNum];
-		unset($this->availableSlots[$slotNum]);
-		$this->message_handler(__METHOD__, "Pulled slot #". $slotNum .", previously used by (". $oldProc .")");
-		$this->spawn_child($slotNum);
+		$slotNum = array_shift(array_keys($this->availableSlots[$queue]));
+		$oldProc = $this->availableSlots[$queue][$slotNum];
+		unset($this->availableSlots[$queue][$slotNum]);
+		$this->message_handler(__METHOD__, "Pulled slot #". $slotNum .", in queue=(". $queue .") previously used by (". $oldProc .")");
+		$this->spawn_child($slotNum, $queue);
 		
 		return($slotNum);
 		
@@ -572,9 +608,12 @@ abstract class multiThread {
 	
 	
 	//=========================================================================
-	protected function wait_for_children() {
+	protected function wait_for_children($queue=NULL) {
 		if($this->is_parent()) {
-			while(count($this->childArr) != 0) {
+			if(is_null($queue)) {
+				$queue = $this->defaultQueue;
+			}
+			while(count($this->childArr[$queue]) != 0) {
 				$this->clean_children();
 				usleep(500);
 			}
