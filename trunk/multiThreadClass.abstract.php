@@ -561,7 +561,7 @@ abstract class multiThread {
 			$this->gfObj->debug_print(__METHOD__, $this->gfObj->debug_print($this->maxChildren,0));
 			$this->message_handler(__METHOD__, "maxChildren not set for queue=(". $queue ."), can't spawn", TRUE);
 		}
-		elseif(!is_array($this->availableSlots) || count($this->availableSlots) > $this->maxChildren[$queue]) {
+		elseif(!is_array($this->availableSlots[$queue]) || count($this->availableSlots[$queue]) > $this->maxChildren[$queue]) {
 			$this->message_handler(__METHOD__, "Invalid availableSlots... something terrible happened", TRUE);
 		}
 		
