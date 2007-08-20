@@ -238,6 +238,7 @@ abstract class multiThread {
 	
 	//=========================================================================
 	public function kill_children() {
+		$this->message_handler(__METHOD__, "caught a signal");
 		if($this->is_parent()) {
 			if(is_array($this->childArr) && count($this->childArr)) {
 				$killingSpree = 0;
