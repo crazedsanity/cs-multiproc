@@ -73,7 +73,7 @@ abstract class multiThread {
 	 * cleanup that needs to be done, or processing of output files, etc. should 
 	 * be done within this method.
 	 */
-	abstract protected function dead_child_handler($childNum, $qName);
+	abstract protected function dead_child_handler($childNum, $qName, $exitStatus);
 	
 	
 	
@@ -468,14 +468,15 @@ abstract class multiThread {
 			foreach($this->childArr as $qName=>$subData) {
 				foreach($subData as $childNum=>$pid) {
 					//check if the kid is still breathing.
-					if($this->child_is_dead($pid)) {
+					$childExitStatus = $this->child_is_dead($pid);
+					if($childExitStatus !== FALSE) {
 						$this->message_handler(__METHOD__, "Found child #". $childNum ." of queue (". $qName .") with pid (". $pid .") dead");
 						
 						unset($this->childArr[$qName][$childNum]);
 						$this->availableSlots[$qName][$childNum] = $pid;
 						
 						//tell the parent to handle the dead child.
-						$this->dead_child_handler($childNum, $qName);
+						$this->dead_child_handler($childNum, $qName, $childExitStatus);
 					}
 					else {
 						$retval[$qName]++;
