@@ -268,6 +268,7 @@ abstract class multiThread {
 	protected function message_handler($method, $message, $isException=FALSE) {
 		if($isException) {
 			//create the final message without a time, for displaying in the exception
+			$message = "FATAL: ". $message;
 			$finalMessage = $this->create_message($method, $message, FALSE);
 			
 			//show a message WITH a time, so we know when it happened in relation to other things
