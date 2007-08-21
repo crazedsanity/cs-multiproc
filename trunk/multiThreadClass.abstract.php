@@ -445,7 +445,7 @@ abstract class multiThread {
 		
 		$qName = $this->pid2queue[$pid];
 		if($checkIt == $pid) {
-			$retval = TRUE;
+			$retval = $actualStatus;
 			$this->message_handler(__METHOD__, "Child appears dead (". $checkIt .") in queue (". $qName ."), status=(". $actualStatus .")...?");
 		}
 		elseif($checkIt != $pid && $checkIt > 0) {
