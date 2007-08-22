@@ -8,9 +8,9 @@
  * Current Revision:::: $Revision$
  * 
  * TODO: add proper headers for all methods
- * TODO: enable multiple queues, so one parent can process multiple children in different queues for different tasks.
  * TODO: child lockfiles
  * TODO: check that the lockfile has the proper PID in it, die if not (another test for "sanity_check()").
+ * TODO: allow for non-parent classes to extend this one (if the parent creates a new class, it should also have access to these features).
  */
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
@@ -160,15 +160,14 @@ abstract class multiThread {
 			//check that the lockfile exists.
 			if(!$this->check_lockfile()) {
 				//no lockfile?!?! DIE!!!
-				$this->message_handler(__METHOD__, "No lockfile: KILLING CHILDREN");
+				$this->message_handler(__METHOD__, "No lockfile: KILLING CHILDREN", 'DEBUG');
 				$this->kill_children();
 				
-				$this->message_handler(__METHOD__, "ABNORMAL DEATH (lockfile disappeared)");
-				exit(1);
+				$this->message_handler(__METHOD__, "ABNORMAL DEATH (lockfile disappeared)", 'FATAL');
 			}
 		}
 		else {
-			$this->message_handler(__METHOD__, "Uninitialized", TRUE);
+			$this->message_handler(__METHOD__, "Uninitialized", 'ERROR');
 		}
 	}//end sanity_check()
 	//=========================================================================
@@ -180,7 +179,7 @@ abstract class multiThread {
 	 * Turn the process into a daemon.
 	 */
 	protected function daemonize() {
-		$this->message_handler(__METHOD__, "Cannot daemonize, not implemented yet", TRUE);
+		$this->message_handler(__METHOD__, "Cannot daemonize, not implemented yet", 'ERROR');
 	}//end daemonize()
 	//=========================================================================
 	
@@ -244,13 +243,13 @@ abstract class multiThread {
 				$killingSpree = 0;
 				foreach($this->childArr as $queue => $subData) {
 						foreach($subData as $num=>$childPid) {
-						$this->message_handler(__METHOD__, "parent process: killing child in queue=". $queue .", #$num ($childPid)");
+						$this->message_handler(__METHOD__, "parent process: killing child in queue=". $queue .", #$num ($childPid)", 'DEBUG');
 						posix_kill($childPid, SIGKILL);
 						$this->child_is_dead($childPid, TRUE);
 						$killingSpree++;
 					}
 				}
-				$this->message_handler(__METHOD__, "parent process: done killing children, killed (". $killingSpree .") of them");
+				$this->message_handler(__METHOD__, "parent process: done killing children, killed (". $killingSpree .") of them", 'DEBUG');
 			}
 		}
 		exit(0);
@@ -265,21 +264,56 @@ abstract class multiThread {
 	/**
 	 * Handles formatting messages... presently, they're just printed to STDOUT.
 	 */
-	protected function message_handler($method, $message, $isException=FALSE) {
-		if($isException) {
+	final protected function message_handler($method, $message, $type='NOTICE') {
+		if(is_bool($type) && $type === TRUE) {
+			$type = 'FATAL';
+		}
+		$type = strtoupper($type);
+		switch($type) {
+			case 'NOTICE':
+			case NULL: {
+				$type='NOTICE';
+				$exitValue=NULL;
+			}
+			break;
+			
+			case 'ERROR': {
+				$exitValue = 1;
+			}
+			break;
+			
+			case 'FATAL': {
+				$exitValue = 2;
+			}
+			break;
+			
+			case 'DONE': {
+				$exitValue = 0;
+			}
+			break;
+			
+			case 'DEBUG':
+			default:
+				$type = 'DEBUG';
+				$exitValue = NULL;
+		}
+		
+		
+		if(!is_null($exitValue)) {
 			//create the final message without a time, for displaying in the exception
 			$message = "FATAL: ". $message;
-			$finalMessage = $this->create_message($method, $message, FALSE);
+			$finalMessage = $this->create_message($method, $type, $message, FALSE);
 			
 			//show a message WITH a time, so we know when it happened in relation to other things
-			$this->gfObj->debug_print($this->create_message($method, $message, TRUE));
+			$this->gfObj->debug_print($this->create_message($method, $type, $message, TRUE));
 			
 			//finish up!
 			$this->kill_children();
-			throw new exception(__METHOD__ .": EXCEPTION FROM MESSAGE::: \n\t". $finalMessage);
+			$this->gfObj->debug_print(__METHOD__ ." EXITTING FROM MESSAGE::: \n\t". $finalMessage);
+			exit($exitValue);
 		}
 		else {
-			$this->gfObj->debug_print($this->create_message($method, $message));
+			$this->gfObj->debug_print($this->create_message($method, $type, $message));
 		}
 	}//end message_handler()
 	//=========================================================================
@@ -291,15 +325,16 @@ abstract class multiThread {
 	 * Create the message string for message_handler(), thus avoiding any 
 	 * recursive calling of said method.
 	 */
-	private function create_message($method, $message, $addTimestamp=TRUE) {
+	final private function create_message($method, $type, $message, $addTimestamp=TRUE) {
 		
 		$retval = "";
 		if($addTimestamp) {
-			$retval .= sprintf('%.4f', microtime(TRUE)) ." ";
+			$x = explode('.', sprintf('%.4f', microtime(TRUE)));
+			$retval .= date('Y-m-d H:m:s') .".". $x[1] ." ";
 		}
 		
 		if($this->is_child()) {
-			$retval .= "---- #". $this->childNum ." [". $method ."] pid=(". $this->myPid .") ";
+			$retval .= "---- #". $this->childNum ." ". $type .": [". $method ."] pid=(". $this->myPid .") ";
 		}
 		else {
 			$retval .= "PARENT  [". $method ."] pid=(". posix_getpid() .") ";
@@ -334,28 +369,28 @@ abstract class multiThread {
 					$secondsWaited = (time() - $startTime);
 					$lockfileTime = $this->check_lockfile();
 					if(is_numeric($lockfileTime)) {
-						$this->message_handler(__METHOD__, " lockfile still present (created at ". $lockfileTime ."), slept for (". $secondsWaited  .")");
+						$this->message_handler(__METHOD__, " lockfile still present (created at ". $lockfileTime ."), slept for (". $secondsWaited  .")", 'DEBUG');
 						sleep($secondsBetweenChecks);
 					}
 					else {
-						$this->message_handler(__METHOD__, "file disappeared at (". time() .")");
+						$this->message_handler(__METHOD__, "file disappeared at (". time() .")", 'NOTICE');
 						$goodToGo = TRUE;
 						break;
 					}
 				}
 				
 				if($this->check_lockfile()) {
-					$this->message_handler(__METHOD__, "FATAL: lockfile still present, and we have already waited ". $minutesToWait ." minute(s)", TRUE);
+					$this->message_handler(__METHOD__, "lockfile still present, and we have already waited ". $minutesToWait ." minute(s)", 'FATAL');
 				}
 				elseif(!$goodToGo && $this->check_lockfile() === FALSE) {
 					//last moment check...
-					$this->message_handler(__METHOD__, ": lockfile disappeared at the last moment... continuing on");
+					$this->message_handler(__METHOD__, ": lockfile disappeared at the last moment... continuing on", 'DEBUG');
 					$goodToGo = TRUE;
 				}
 				
 			}
 			else {
-				$this->message_handler(__METHOD__, "FATAL: lockfile exists and no waiting period was defined", TRUE);
+				$this->message_handler(__METHOD__, "lockfile exists and no waiting period was defined", 'FATAL');
 			}
 		}
 		else {
@@ -391,25 +426,26 @@ abstract class multiThread {
 	private function spawn_child($childNum, $queue) {
 		
 		if($this->is_child()) {
-			$this->message_handler(__METHOD__, "Child attempted to spawn more children!!!", TRUE);
+			$this->message_handler(__METHOD__, "Child attempted to spawn more children!!!", 'FATAL');
 		}
 		elseif(isset($this->childArr[$queue][$childNum])) {
-			$this->message_handler(__METHOD__, "Attempted to create child in a used slot (". $childNum ."), queue=(". $queue ."): used by (". $this->childArr[$queue][$childNum] .")", TRUE);
+			$this->message_handler(__METHOD__, "Attempted to create child in a used slot (". $childNum ."), queue=(". $queue ."): used by (". $this->childArr[$queue][$childNum] .")", 'FATAL');
 		}
 		elseif(is_null($childNum) || !is_numeric($childNum)) {
-			$this->message_handler(__METHOD__, "Cannot create child without a valid childNum (". $childNum .")", TRUE);
+			$this->message_handler(__METHOD__, "Cannot create child without a valid childNum (". $childNum .")", 'FATAL');
 		}
 		elseif(is_null($queue) || !strlen($queue) || !isset($this->availableSlots[$queue])) {
-			$this->message_handler(__METHOD__, "Invalid queue name given (". $queue .")", TRUE);
+			$this->message_handler(__METHOD__, "Invalid queue name given (". $queue .")", 'FATAL');
 		}
 		
 		//NOTE: *EACH* process should have this set.
 		$pid = pcntl_fork();
 		
 		if($pid == -1) {
-			$this->message_handler(__METHOD__, "Unable to fork", TRUE);
+			$this->message_handler(__METHOD__, "Unable to fork", 'FATAL');
 		}
 		else {
+			$this->myPid = posix_getpid();
 			if($pid) {
 				//PARENT PROCESS!!!
 				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid);
@@ -419,9 +455,8 @@ abstract class multiThread {
 			else {
 				//CHILD PROCESS!!!
 				$this->childArr = NULL;
-				$this->myPid = posix_getpid();
 				$this->childNum = $childNum;
-				$this->message_handler(__METHOD__, "should be child #". $childNum);
+				$this->message_handler(__METHOD__, "Created child process #". $childNum);
 			}
 		}
 		
@@ -446,10 +481,10 @@ abstract class multiThread {
 		$qName = $this->pid2queue[$pid];
 		if($checkIt == $pid) {
 			$retval = $actualStatus;
-			$this->message_handler(__METHOD__, "Child appears dead (". $checkIt .") in queue (". $qName ."), status=(". $actualStatus .")...?");
+			$this->message_handler(__METHOD__, "Child appears dead (". $checkIt .") in queue (". $qName ."), status=(". $actualStatus .")", 'DEBUG');
 		}
 		elseif($checkIt != $pid && $checkIt > 0) {
-			$this->message_handler(__METHOD__, "returned value doesn't equal pid (". $checkIt ." != ". $pid ."), status=(". $actualStatus .")", TRUE);
+			$this->message_handler(__METHOD__, "returned value doesn't equal pid (". $checkIt ." != ". $pid ."), status=(". $actualStatus .")", 'ERROR');
 		}
 		
 		return($retval);
@@ -470,7 +505,7 @@ abstract class multiThread {
 					//check if the kid is still breathing.
 					$childExitStatus = $this->child_is_dead($pid);
 					if($childExitStatus !== FALSE) {
-						$this->message_handler(__METHOD__, "Found child #". $childNum ." of queue (". $qName .") with pid (". $pid .") dead");
+						$this->message_handler(__METHOD__, "Found child #". $childNum ." of queue (". $qName .") with pid (". $pid .") dead", 'DEBUG');
 						
 						unset($this->childArr[$qName][$childNum]);
 						$this->availableSlots[$qName][$childNum] = $pid;
@@ -485,7 +520,7 @@ abstract class multiThread {
 			}
 		}
 		else {
-			$this->message_handler(__METHOD__, "children can't clean children", TRUE);
+			$this->message_handler(__METHOD__, "children can't clean children", 'ERROR');
 		}
 		return($retval);
 	}//end clean_children()
@@ -504,8 +539,7 @@ abstract class multiThread {
 			$this->clean_children();
 		}
 		else {
-			$this->message_handler(__METHOD__, "Child lived to see itself die... ????");
-			exit(1);
+			$this->message_handler(__METHOD__, "Child lived to see itself die... ????", 'ERROR');
 		}
 	}//end child_death()
 	//=========================================================================
@@ -520,7 +554,7 @@ abstract class multiThread {
 	 */
 	protected function set_max_children($maxChildren, $queue=0) {
 		if(isset($this->availableSlots[$queue])) {
-			$this->message_handler(__METHOD__, "Queue already exists (". $queue .")", TRUE);
+			$this->message_handler(__METHOD__, "Queue already exists (". $queue .")", 'ERROR');
 		}
 		elseif($this->is_parent()) {
 			if(!is_array($this->maxChildren)) {
@@ -537,7 +571,7 @@ abstract class multiThread {
 			$this->message_handler(__METHOD__, "availableSlots: ". $this->gfObj->debug_print($this->availableSlots,0));
 		}
 		else {
-			$this->message_handler(__METHOD__, "FATAL: child trying to change maxChildren to (". $maxChildren .") for queue (". $queue .")", TRUE);
+			$this->message_handler(__METHOD__, "FATAL: child trying to change maxChildren to (". $maxChildren .") for queue (". $queue .")", 'FATAL');
 		}
 	}//end set_max_children()
 	//=========================================================================
@@ -558,14 +592,14 @@ abstract class multiThread {
 		$livingChildren = $this->clean_children();
 		$livingChildren = $livingChildren[$queue];
 		if($livingChildren > $this->maxChildren[$queue]) {
-			$this->message_handler(__METHOD__, "Too many children spawned (". $livingChildren ."/". $this->maxChildren[$queue] .")", TRUE);
+			$this->message_handler(__METHOD__, "Too many children spawned (". $livingChildren ."/". $this->maxChildren[$queue] .")", 'FATAL');
 		}
 		elseif(!is_numeric($this->maxChildren[$queue]) || $this->maxChildren[$queue] < 1) {
 			$this->gfObj->debug_print(__METHOD__, $this->gfObj->debug_print($this->maxChildren,0));
-			$this->message_handler(__METHOD__, "maxChildren not set for queue=(". $queue ."), can't spawn", TRUE);
+			$this->message_handler(__METHOD__, "maxChildren not set for queue=(". $queue ."), can't spawn", 'ERROR');
 		}
 		elseif(!is_array($this->availableSlots[$queue]) || count($this->availableSlots[$queue]) > $this->maxChildren[$queue]) {
-			$this->message_handler(__METHOD__, "Invalid availableSlots... something terrible happened", TRUE);
+			$this->message_handler(__METHOD__, "Invalid availableSlots... something terrible happened", 'ERROR');
 		}
 		
 		$numLoops = 0;
@@ -622,7 +656,7 @@ abstract class multiThread {
 			}
 		}
 		else {
-			$this->message_handler(__METHOD__, "Called by a child... your script has gone wonky", TRUE);
+			$this->message_handler(__METHOD__, "Called by a child... your script has gone wonky", 'ERROR');
 		}
 	}//end wait_for_children()
 	//=========================================================================
@@ -639,11 +673,11 @@ abstract class multiThread {
 				$this->message_handler(__METHOD__, "Successfully removed lockfile");
 			}
 			else {
-				$this->message_handler(__METHOD__, "Could not find lockfile?", TRUE);
+				$this->message_handler(__METHOD__, "Could not find lockfile?", 'FATAL');
 			}
 		}
 		else {
-			$this->message_handler(__METHOD__, "Child attempted to remove the lockfile", TRUE);
+			$this->message_handler(__METHOD__, "Child attempted to remove the lockfile", 'ERROR');
 		}
 	}//end remove_lockfile()
 	//=========================================================================
@@ -664,9 +698,9 @@ abstract class multiThread {
 			$this->remove_lockfile();
 		}
 		
-		$this->message_handler(__METHOD__, "All done!");
-		
-		exit(0);
+		//NOTE: the "exit(99)" is there to indicate something truly horrible happened, as message_handler() didn't exit after the DONE signal.
+		$this->message_handler(__METHOD__, "All done!", 'DONE');
+		exit(99);
 	}//end finished()
 	//=========================================================================
 	
