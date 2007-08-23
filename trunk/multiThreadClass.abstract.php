@@ -47,7 +47,7 @@ abstract class multiThread {
 	private $fsObj;
 	
 	/** Instance of cs_globalFunctions{}, for various functions/methods within. */
-	private $gfObj;
+	protected $gfObj;
 	
 	/** The maximum number of children that can be spawned. */
 	private $maxChildren=NULL;
