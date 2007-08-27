@@ -165,6 +165,16 @@ abstract class multiThread {
 				
 				$this->message_handler(__METHOD__, "ABNORMAL DEATH (lockfile disappeared)", 'FATAL');
 			}
+			elseif(!is_numeric($this->parentPid)) {
+				$this->message_handler(__METHOD__, "parentPid is invalid, KILLING CHILDREN", 'DEBUG');
+				$this->kill_children();
+				$this->message_handler(__METHOD__, "ABNORMAL DEATH (parentPid was invalid)", 'FATAL');
+			}
+			elseif(!is_numeric($this->myPid)) {
+				$this->message_handler(__METHOD__, "myPid is invalid, KILLING CHILDREN", 'DEBUG');
+				$this->kill_children();
+				$this->message_handler(__METHOD__, "ABNORMAL DEATH (myPid was invalid)", 'FATAL');
+			}
 		}
 		else {
 			$this->message_handler(__METHOD__, "Uninitialized", 'ERROR');
@@ -221,10 +231,10 @@ abstract class multiThread {
 	
 	//=========================================================================
 	/**
-	 * Uses is_parent() to determine if this is a child or not.
+	 * Exact opposite of is_parent, with an additional check to determine if 
+	 * it has been initialized properly.
 	 */
 	protected function is_child() {
-		
 		$retval = FALSE;
 		if($this->myPid != $this->parentPid) {
 			$retval = TRUE;
@@ -300,6 +310,11 @@ abstract class multiThread {
 		
 		
 		if(!is_null($exitValue)) {
+			if(!is_object($this->gfObj)) {
+				$this->gfObj = new cs_globalFunctions;
+				$this->gfObj->debugRemoveHr=1;
+				$this->gfObj->debugPrintOpt=1;
+			}
 			//create the final message without a time, for displaying in the exception
 			$message = "FATAL: ". $message;
 			$finalMessage = $this->create_message($method, $type, $message, FALSE);
@@ -334,7 +349,7 @@ abstract class multiThread {
 		}
 		
 		if($this->is_child()) {
-			$retval .= "{". $type ."}\t---- #". $this->childNum ." : [". $method ."] pid=(". $this->myPid .") ";
+			$retval .= "{". $type ."}\t-- #". $this->childNum ." : [". $method ."] pid=(". $this->myPid .") ";
 		}
 		else {
 			$retval .= "{". $type ."}\tPARENT  [". $method ."] pid=(". posix_getpid() .") ";
@@ -448,7 +463,7 @@ abstract class multiThread {
 			$this->myPid = posix_getpid();
 			if($pid) {
 				//PARENT PROCESS!!!
-				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid);
+				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid ." in QUEUE=(". $queue .")");
 				$this->childArr[$queue][$childNum] = $pid;
 				$this->pid2queue[$pid] = $queue;
 			}
@@ -456,7 +471,7 @@ abstract class multiThread {
 				//CHILD PROCESS!!!
 				$this->childArr = NULL;
 				$this->childNum = $childNum;
-				$this->message_handler(__METHOD__, "Created child process #". $childNum);
+				$this->message_handler(__METHOD__, "Created child process #". $childNum ." in QUEUE=(". $queue .")");
 			}
 		}
 		
@@ -518,6 +533,9 @@ abstract class multiThread {
 					}
 				}
 			}
+		}
+		elseif(!is_array($this->childArr) && $this->is_parent()) {
+			$this->message_handler(__METHOD__, "Parent trying to clean invalid child array... ", 'ERROR');
 		}
 		else {
 			$this->message_handler(__METHOD__, "children can't clean children", 'ERROR');
