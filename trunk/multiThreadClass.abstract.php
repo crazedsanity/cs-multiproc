@@ -309,7 +309,7 @@ abstract class multiThread {
 			
 			//finish up!
 			$this->kill_children();
-			$this->gfObj->debug_print(__METHOD__ ." EXITTING FROM MESSAGE::: \n\t". $finalMessage);
+			$this->gfObj->debug_print(__METHOD__ ." EXITING FROM MESSAGE::: \n\t". $finalMessage);
 			exit($exitValue);
 		}
 		else {
@@ -334,10 +334,10 @@ abstract class multiThread {
 		}
 		
 		if($this->is_child()) {
-			$retval .= "---- #". $this->childNum ." ". $type .": [". $method ."] pid=(". $this->myPid .") ";
+			$retval .= "{". $type ."}\t---- #". $this->childNum ." : [". $method ."] pid=(". $this->myPid .") ";
 		}
 		else {
-			$retval .= "PARENT  [". $method ."] pid=(". posix_getpid() .") ";
+			$retval .= "{". $type ."}\tPARENT  [". $method ."] pid=(". posix_getpid() .") ";
 		}
 		
 		$retval .= $message;
