@@ -345,7 +345,7 @@ abstract class multiThread {
 		$retval = "";
 		if($addTimestamp) {
 			$x = explode('.', sprintf('%.4f', microtime(TRUE)));
-			$retval .= date('Y-m-d H:m:s') .".". $x[1] ." ";
+			$retval .= date('Y-m-d H:i:s') .".". $x[1] ." ";
 		}
 		
 		if($this->is_child()) {
@@ -514,6 +514,7 @@ abstract class multiThread {
 	 */
 	public function clean_children() {
 		$retval = array();
+		$numDead = 0;
 		if(is_array($this->childArr) && $this->is_parent()) {
 			foreach($this->childArr as $qName=>$subData) {
 				foreach($subData as $childNum=>$pid) {
@@ -527,6 +528,7 @@ abstract class multiThread {
 						
 						//tell the parent to handle the dead child.
 						$this->dead_child_handler($childNum, $qName, $childExitStatus);
+						$numDead++;
 					}
 					else {
 						$retval[$qName]++;
@@ -540,6 +542,11 @@ abstract class multiThread {
 		else {
 			$this->message_handler(__METHOD__, "children can't clean children", 'ERROR');
 		}
+		
+		if($numDead > 0) {
+			$this->message_handler(__METHOD__, "after cleaning ". $numDead ." dead children, status of queue::: ". $this->gfObj->debug_print($this->childArr,0), 'DEBUG');
+		}
+		
 		return($retval);
 	}//end clean_children()
 	//=========================================================================
