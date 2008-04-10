@@ -14,9 +14,10 @@
  */
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
-require_once(dirname(__FILE__) .'/../base/globalFunctions.php');
+require_once(dirname(__FILE__) .'/../cs-content/cs_globalFunctions.php');
+require_once(dirname(__FILE__) .'/ipcClass.abstract.php');
 
-abstract class multiThread {
+abstract class multiThread extends ipc {
 	
 	/** PID of the parent process. */
 	private $parentPid;
@@ -61,6 +62,9 @@ abstract class multiThread {
 	/** Links PID's to queue names. */
 	private $pid2queue=array();
 	
+	/** Function (method) for ticks. */
+	private $tickFunc;
+	
 	/* ************************************************************************
 	 * 
 	 * ABSTRACT METHODS: these methods MUST be defined in extending classes.
@@ -91,6 +95,8 @@ abstract class multiThread {
 	 * way to set $this->isInitialized
 	 */
 	protected function __construct($rootPath=NULL, $lockfileName=NULL) {
+
+		$this->tickFunc = array($this, 'sanity_check');
 		
 		//check that some required functions are available.
 		$requiredFuncs = array('posix_getpid', 'posix_kill', 'pcntl_fork', 'pcntl_wait', 'pcntl_waitpid', 'pcntl_signal');
@@ -147,8 +153,10 @@ abstract class multiThread {
 		 * built to provide, including automatic death if the lockfile is 
 		 * removed.
 		 */
+		
+		parent::__construct();
 		declare(ticks=1);
-		register_tick_function(array($this, 'sanity_check'));
+		register_tick_function($this->tickFunc);
 	}//end __construct()
 	//=========================================================================
 	
@@ -717,7 +725,7 @@ abstract class multiThread {
 			
 			//stop doing stuff as ticks happen, so we don't "die abnormally" due
 			//	to a missing lockfile.
-			unregister_tick_function();
+			unregister_tick_function($this->tickFunc);
 			
 			//drop the lockfile, tell 'em what happened, and die.
 			$this->remove_lockfile();
