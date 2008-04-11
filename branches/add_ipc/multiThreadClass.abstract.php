@@ -483,6 +483,7 @@ abstract class multiThread {
 		}
 		else {
 			$this->myPid = posix_getpid();
+			$childMsgQ = new ipc($pid, $this->rootPath);
 			if($pid) {
 				//PARENT PROCESS!!!
 				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid ." in QUEUE=(". $queue .")");
@@ -490,7 +491,7 @@ abstract class multiThread {
 				$this->pid2queue[$pid] = $queue;
 				
 				//now let's add an ipc{} object into an array, so we can talk to our kids.
-				$this->childMsgQueue[$queue][$childNum] = new ipc($pid, $this->rootPath);
+				$this->childMsgQueue[$queue][$childNum] = $childMsgQ;
 			}
 			else {
 				//CHILD PROCESS!!!
@@ -499,6 +500,7 @@ abstract class multiThread {
 				$this->message_handler(__METHOD__, "Created child process #". $childNum ." in QUEUE=(". $queue .")");
 				
 				//create an ipc{} object so we can talk to our parent.
+				$this->msgQueue = $childMsgQ;
 				$this->parentMsgQueue = new ipc($this->parentPid, $this->rootPath);
 			}
 		}
