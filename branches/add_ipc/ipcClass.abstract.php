@@ -4,11 +4,8 @@
 
 abstract class ipc {
 	
-	/** Required for using the ftok() function... */
-	private $file = '/tmp/php_msgqueue.stat';
-	
 	/** Queue resource var. */
-	protected $q=NULL;
+	protected $resource=NULL;
 	
 	/** maximum size of message that we will accept... */
 	private $maxSize=1024;
@@ -17,11 +14,12 @@ abstract class ipc {
 	protected $lastMsgType=NULL;
 	
 	//-------------------------------------------------------------------------
-	protected function __construct($maxMessageSize=NULL) {
+	protected function __construct($qName, $rwDir='/tmp', $maxMessageSize=NULL) {
 		if(isset($maxMsgSize) && is_numeric($maxMsgSize) && ($maxMsgSize > 0)) {
 			$this->maxSize = $maxMsgSize;
 		}
-		$this->q = msg_get_queue(ftok($this->file, 'R'), 0666);
+		$file = $rwDir .'/'. $qName .'.phpMessageQueue.stat';
+		$this->resource = msg_get_queue(ftok($file, 'R'), 0666);
 	}//end __construct()
 	//-------------------------------------------------------------------------
 	
@@ -33,7 +31,7 @@ abstract class ipc {
 	 */
 	protected function send_message($message, $msgType=1) {
 		if(strlen($message)) {
-			$retval = msg_send($this->q, $msgType, $message);
+			$retval = msg_send($this->resource, $msgType, $message);
 		}
 		else {
 			throw new exception(__METHOD__ .": no data or zero-length message");
@@ -50,9 +48,21 @@ abstract class ipc {
 	 */
 	protected function receive_message($msgType=1) {
 		$myMsgType = NULL;
-		msg_receive($this->q, $msgType, $this->lastMsgType, $this->maxSize, $retval);
+		msg_receive($this->resource, $msgType, $this->lastMsgType, $this->maxSize, $retval);
 		return($retval);
 	}//end receive_message()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	/**
+	 * Returns the number of messages in this queue.
+	 */
+	private function get_num_messages() {
+		$data = msg_stat_queue($this->resource);
+		return($data['msg_qnum']);
+	}//end get_num_messages()
 	//-------------------------------------------------------------------------
 	
 }
