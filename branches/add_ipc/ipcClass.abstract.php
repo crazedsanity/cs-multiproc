@@ -2,7 +2,7 @@
 
 
 
-abstract class ipc {
+class ipc {
 	
 	/** Queue resource var. */
 	protected $resource=NULL;
@@ -14,7 +14,7 @@ abstract class ipc {
 	protected $lastMsgType=NULL;
 	
 	//-------------------------------------------------------------------------
-	protected function __construct($qName, $rwDir='/tmp', $maxMessageSize=NULL) {
+	public function __construct($qName, $rwDir='/tmp', $maxMessageSize=NULL) {
 		if(isset($maxMsgSize) && is_numeric($maxMsgSize) && ($maxMsgSize > 0)) {
 			$this->maxSize = $maxMsgSize;
 		}
@@ -29,7 +29,7 @@ abstract class ipc {
 	/**
 	 * Add a message to the queue.
 	 */
-	protected function send_message($message, $msgType=1) {
+	public function send_message($message, $msgType=1) {
 		if(strlen($message)) {
 			if(!isset($msgType) || !is_numeric($msgType)) {
 				$msgType = 1;
@@ -49,10 +49,11 @@ abstract class ipc {
 	/**
 	 * Get a message out of the queue.
 	 */
-	protected function receive_message($msgType=1) {
+	public function receive_message($msgType=1) {
 		if(!isset($msgType) || !is_numeric($msgType)) {
 			$msgType = 1;
 		}
+		$retval = NULL;
 		msg_receive($this->resource, $msgType, $this->lastMsgType, $this->maxSize, $retval);
 		return($retval);
 	}//end receive_message()
@@ -64,7 +65,7 @@ abstract class ipc {
 	/**
 	 * Returns the number of messages in this queue.
 	 */
-	private function get_num_messages() {
+	public function get_num_messages() {
 		$data = msg_stat_queue($this->resource);
 		return($data['msg_qnum']);
 	}//end get_num_messages()

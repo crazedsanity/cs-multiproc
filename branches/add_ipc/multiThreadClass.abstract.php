@@ -17,7 +17,7 @@ require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
 require_once(dirname(__FILE__) .'/../cs-content/cs_globalFunctions.php');
 require_once(dirname(__FILE__) .'/ipcClass.abstract.php');
 
-abstract class multiThread extends ipc {
+abstract class multiThread {
 	
 	/** PID of the parent process. */
 	private $parentPid;
@@ -69,13 +69,13 @@ abstract class multiThread extends ipc {
 	private $rootPath;
 	
 	/** Message queue for this process. */
-	private $msgQueue;
+	protected $msgQueue;
 	
 	/** Message queue for all children. */
-	private $childMsgQueue = array();
+	protected $childMsgQueue = array();
 	
 	/** Message queue for the parent (for the child proc, $this->msgQueue would actually still be the parent's queue). */
-	private $parentMsgQueue;
+	protected $parentMsgQueue;
 	
 	/* ************************************************************************
 	 * 
@@ -760,13 +760,13 @@ abstract class multiThread extends ipc {
 	
 	
 	//=========================================================================
-	protected function send_message_to_child($message, $childNum, $qName=NULL, $msgType=NULL) {
+	protected function send_message_to_child($childNum, $message, $qName=NULL, $msgType=NULL) {
 		if($this->is_parent()) {
 			if(!isset($qName) || !strlen($qName)) {
 				$qName = $this->defaultQueue;
 			}
 			if(!isset($this->childMsgQueue[$qName][$childNum])) {
-				$this->message_handler(__METHOD__, "Invalid queue (". $qName ." or child (". $childNum .")", 'FATAL');
+				$this->message_handler(__METHOD__, "Invalid queue (". $qName .") or child (". $childNum .")", 'FATAL');
 			}
 			$this->childMsgQueue[$qName][$childNum]->send_message($message, $childNum, $msgType);
 		}
