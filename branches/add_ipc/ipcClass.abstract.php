@@ -31,6 +31,9 @@ abstract class ipc {
 	 */
 	protected function send_message($message, $msgType=1) {
 		if(strlen($message)) {
+			if(!isset($msgType) || !is_numeric($msgType)) {
+				$msgType = 1;
+			}
 			$retval = msg_send($this->resource, $msgType, $message);
 		}
 		else {
@@ -47,7 +50,9 @@ abstract class ipc {
 	 * Get a message out of the queue.
 	 */
 	protected function receive_message($msgType=1) {
-		$myMsgType = NULL;
+		if(!isset($msgType) || !is_numeric($msgType)) {
+			$msgType = 1;
+		}
 		msg_receive($this->resource, $msgType, $this->lastMsgType, $this->maxSize, $retval);
 		return($retval);
 	}//end receive_message()

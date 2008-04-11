@@ -65,6 +65,18 @@ abstract class multiThread extends ipc {
 	/** Function (method) for ticks. */
 	private $tickFunc;
 	
+	/** Directory to store files, such as filelocks and message queues. */
+	private $rootPath;
+	
+	/** Message queue for this process. */
+	private $msgQueue;
+	
+	/** Message queue for all children. */
+	private $childMsgQueue = array();
+	
+	/** Message queue for the parent (for the child proc, $this->msgQueue would actually still be the parent's queue). */
+	private $parentMsgQueue;
+	
 	/* ************************************************************************
 	 * 
 	 * ABSTRACT METHODS: these methods MUST be defined in extending classes.
@@ -114,7 +126,8 @@ abstract class multiThread extends ipc {
 		if(is_null($rootPath) || !strlen($rootPath)) {
 			$rootPath = dirname(__FILE__) .'/../..';
 		}
-		$this->fsObj = new cs_fileSystemClass($rootPath);
+		$this->rootPath = $rootPath;
+		$this->fsObj = new cs_fileSystemClass($this->rootPath);
 		
 		$this->gfObj = new cs_globalFunctions;
 		$this->gfObj->debugPrintOpt=1;
@@ -154,7 +167,8 @@ abstract class multiThread extends ipc {
 		 * removed.
 		 */
 		
-		parent::__construct();
+		#parent::__construct();
+		$this->msgQueue = new ipc($this->myPid, $this->rootPath);
 		declare(ticks=1);
 		register_tick_function($this->tickFunc);
 	}//end __construct()
@@ -474,12 +488,18 @@ abstract class multiThread extends ipc {
 				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid ." in QUEUE=(". $queue .")");
 				$this->childArr[$queue][$childNum] = $pid;
 				$this->pid2queue[$pid] = $queue;
+				
+				//now let's add an ipc{} object into an array, so we can talk to our kids.
+				$this->childMsgQueue[$queue][$childNum] = new ipc($pid, $this->rootPath);
 			}
 			else {
 				//CHILD PROCESS!!!
 				$this->childArr = NULL;
 				$this->childNum = $childNum;
 				$this->message_handler(__METHOD__, "Created child process #". $childNum ." in QUEUE=(". $queue .")");
+				
+				//create an ipc{} object so we can talk to our parent.
+				$this->parentMsgQueue = new ipc($this->parentPid, $this->rootPath);
 			}
 		}
 		
@@ -735,6 +755,41 @@ abstract class multiThread extends ipc {
 		$this->message_handler(__METHOD__, "All done!", 'DONE');
 		exit(99);
 	}//end finished()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	protected function send_message_to_child($message, $childNum, $qName=NULL, $msgType=NULL) {
+		if($this->is_parent()) {
+			if(!isset($qName) || !strlen($qName)) {
+				$qName = $this->defaultQueue;
+			}
+			if(!isset($this->childMsgQueue[$qName][$childNum])) {
+				$this->message_handler(__METHOD__, "Invalid queue (". $qName ." or child (". $childNum .")", 'FATAL');
+			}
+			$this->childMsgQueue[$qName][$childNum]->send_message($message, $childNum, $msgType);
+		}
+		else {
+			$this->message_handler(__METHOD__, "Child tried to talk to another child", 'FATAL');
+		}
+	}//end send_message_to_child()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	/**
+	 * Send message from child to parent process.
+	 */
+	protected function send_message_to_parent($message, $msgType=NULL) {
+		if($this->is_child()) {
+			$this->parentMsgQueue->send_message($message, $msgType);
+		}
+		else {
+			$this->message_handler(__METHOD__, "", 'FATAL');
+		}
+	}//end send_message_to_parent()
 	//=========================================================================
 	
 }
