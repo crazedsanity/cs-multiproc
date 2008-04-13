@@ -38,10 +38,19 @@ class cs_ipc {
 	/** Holds the value of what the last message type was. */
 	protected $lastMsgType=NULL;
 	
+	/** Process ID, for attaching a queue to a given process. */
+	protected $processId;
+	
 	//-------------------------------------------------------------------------
-	public function __construct($qName, $rwDir='/tmp') {
-		$file = $rwDir .'/'. $qName .'.phpMessageQueue.stat';
-		$this->resource = msg_get_queue(ftok($file, 'R'), 0666);
+	public function __construct($processId, $rwDir='/tmp') {
+		
+		//EXAMPLE: ~project/rw/11354.phpMessageQueue.stat
+		$file = $rwDir .'/'. $processId .'.phpMessageQueue.stat';
+		
+		$this->resource = new cs_fileSystemClass($rwDir);
+		$this->resource->create_file($file, TRUE);
+		
+		$this->gfObj = new cs_globalFunctions;
 	}//end __construct()
 	//-------------------------------------------------------------------------
 	
@@ -51,12 +60,20 @@ class cs_ipc {
 	/**
 	 * Add a message to the queue.
 	 */
-	public function send_message($message, $msgType=1) {
+	public function send_message($senderPid, $message, $msgType=1) {
 		if(strlen($message)) {
 			if(!isset($msgType) || !is_numeric($msgType)) {
 				$msgType = 1;
 			}
-			$retval = $this->append_to_file($message, $msgType);
+			
+			$data = array(
+				0	=> microtime(TRUE),
+				1	=> $senderPid,
+				2	=> $msgType,
+				3	=> base64_encode($message)
+			);
+			$line = $this->gfObj->string_from_array($data, NULL, '||');
+			$retval = $this->resource->append_to_file($line);
 		}
 		else {
 			throw new exception(__METHOD__ .": no data or zero-length message");
@@ -71,15 +88,23 @@ class cs_ipc {
 	/**
 	 * Get a message out of the queue.
 	 */
-	public function receive_messages($msgType=1) {
-		if(!isset($msgType) || !is_numeric($msgType)) {
-			$msgType = 1;
+	public function receive_messages() {
+		
+		//since we've already got the file open, check if there are lines left.
+		$newLines = $this->resource->count_remaining_lines();
+		
+		$retval = NULL;
+		if($newLines > 0) {
+			$retval = array();
+			
+			for($i=0; $i < $newLines; $i++) {
+				$retval[] = $this->resource->get_next_line();
+			}
 		}
+		
 		return($retval);
 	}//end receive_message()
 	//-------------------------------------------------------------------------
-	
-	
 	
 	
 }
