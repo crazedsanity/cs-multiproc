@@ -1,6 +1,12 @@
 <?php
 
-
+/**
+ * 
+ * SVN Signature::::::: $Id$
+ * Last Committed Date: $Date$
+ * Last Committed Path: $HeadURL$
+ * Current Revision:::: $Revision$
+ */
 
 class cs_ipc {
 	
