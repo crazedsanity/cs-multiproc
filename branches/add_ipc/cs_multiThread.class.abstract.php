@@ -15,9 +15,9 @@
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
 require_once(dirname(__FILE__) .'/../cs-content/cs_globalFunctions.php');
-require_once(dirname(__FILE__) .'/ipcClass.abstract.php');
+require_once(dirname(__FILE__) .'/cs_ipc.class.abstract.php');
 
-abstract class multiThread {
+abstract class cs_multiThread {
 	
 	/** PID of the parent process. */
 	private $parentPid;
@@ -168,7 +168,7 @@ abstract class multiThread {
 		 */
 		
 		#parent::__construct();
-		$this->msgQueue = new ipc($this->myPid, $this->rootPath);
+		$this->msgQueue = new cs_ipc($this->myPid, $this->rootPath);
 		declare(ticks=1);
 		register_tick_function($this->tickFunc);
 	}//end __construct()
@@ -483,7 +483,7 @@ abstract class multiThread {
 		}
 		else {
 			$this->myPid = posix_getpid();
-			$childMsgQ = new ipc($pid, $this->rootPath);
+			$childMsgQ = new cs_ipc($pid, $this->rootPath);
 			if($pid) {
 				//PARENT PROCESS!!!
 				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid ." in QUEUE=(". $queue .")");
@@ -501,7 +501,7 @@ abstract class multiThread {
 				
 				//create an ipc{} object so we can talk to our parent.
 				$this->msgQueue = $childMsgQ;
-				$this->parentMsgQueue = new ipc($this->parentPid, $this->rootPath);
+				$this->parentMsgQueue = new cs_ipc($this->parentPid, $this->rootPath);
 			}
 		}
 		

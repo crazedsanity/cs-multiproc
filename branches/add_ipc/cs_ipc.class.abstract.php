@@ -2,7 +2,7 @@
 
 
 
-class ipc {
+class cs_ipc {
 	
 	/** Queue resource var. */
 	protected $resource=NULL;
