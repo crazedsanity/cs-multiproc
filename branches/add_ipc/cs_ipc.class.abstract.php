@@ -23,7 +23,7 @@
  * 
  * FORMAT OF MESSAGES:
  * 		Messages are written in a multi-field format, with proprietary column meanings.  
- * The delimiter for each field is a double-pipe (||).  The field meanings:
+ * The delimiter for each field is a pipe (|).  The field meanings:
  * 		1.) timestamp (unix timestamp, with microseconds)
  * 		2.) process_id of sender
  * 		3.) message type (numeric, similar to that in the msg_send() method from PHP IPC)
@@ -48,9 +48,11 @@ class cs_ipc {
 		$file = $rwDir .'/'. $processId .'.phpMessageQueue.stat';
 		
 		$this->resource = new cs_fileSystemClass($rwDir);
+		$this->gfObj = new cs_globalFunctions;
+
 		$this->resource->create_file($file, TRUE);
 		
-		$this->gfObj = new cs_globalFunctions;
+		$this->resource->openFile($file);
 	}//end __construct()
 	//-------------------------------------------------------------------------
 	
@@ -66,13 +68,7 @@ class cs_ipc {
 				$msgType = 1;
 			}
 			
-			$data = array(
-				0	=> microtime(TRUE),
-				1	=> $senderPid,
-				2	=> $msgType,
-				3	=> base64_encode($message)
-			);
-			$line = $this->gfObj->string_from_array($data, NULL, '||');
+			$line = microtime(TRUE) ."|". $senderPid ."|". $msgType ."|". base64_encode($message);
 			$retval = $this->resource->append_to_file($line);
 		}
 		else {
@@ -98,12 +94,19 @@ class cs_ipc {
 			$retval = array();
 			
 			for($i=0; $i < $newLines; $i++) {
-				$retval[] = $this->resource->get_next_line();
+				
+				$tLine = $this->resource->get_next_line();
+				$this->gfObj->debug_print($tLine);
+				$myData = explode('|', $tLine);
+				
+				//create a useable data array.
+				$myData[3] = base64_decode($myData[3]);
+				$retval[] = $myData;
 			}
 		}
 		
 		return($retval);
-	}//end receive_message()
+	}//end receive_messages()
 	//-------------------------------------------------------------------------
 	
 	

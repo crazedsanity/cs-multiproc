@@ -770,7 +770,7 @@ abstract class cs_multiThread {
 			if(!isset($this->childMsgQueue[$qName][$childNum])) {
 				$this->message_handler(__METHOD__, "Invalid queue (". $qName .") or child (". $childNum .")", 'FATAL');
 			}
-			$this->childMsgQueue[$qName][$childNum]->send_message($message, $childNum, $msgType);
+			$this->childMsgQueue[$qName][$childNum]->send_message($this->myPid, $message, $msgType);
 		}
 		else {
 			$this->message_handler(__METHOD__, "Child tried to talk to another child", 'FATAL');
