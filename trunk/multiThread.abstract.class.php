@@ -13,9 +13,9 @@
  * TODO: allow for non-parent classes to extend this one (if the parent creates a new class, it should also have access to these features).
  */
 
-require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
-require_once(dirname(__FILE__) .'/../cs-content/globalFunctions.php');
-require_once(dirname(__FILE__) .'/../cs-versionparse/cs-version.abstract.class.php');
+require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystem.class.php');
+require_once(dirname(__FILE__) .'/../cs-content/cs_globalFunctions.class.php');
+require_once(dirname(__FILE__) .'/../cs-versionparse/cs_version.abstract.class.php');
 
 abstract class multiThreadAbstract extends cs_versionAbstract {
 	
@@ -62,6 +62,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	/** Links PID's to queue names. */
 	private $pid2queue=array();
 	
+	/** List of children that were spawned (pid=>#) */
+	private $spawnedChildren = array();
+	
 	/* ************************************************************************
 	 * 
 	 * ABSTRACT METHODS: these methods MUST be defined in extending classes.
@@ -91,7 +94,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * The constructor.  NOTE: this *MUST* be extended, as it is the ONLY 
 	 * way to set $this->isInitialized
 	 */
-	protected function __construct($rootPath=NULL, $lockfileName=NULL) {
+	public function __construct($rootPath=NULL, $lockfileName=NULL) {
 		
 		//check that some required functions are available.
 		$requiredFuncs = array('posix_getpid', 'posix_kill', 'pcntl_fork', 'pcntl_wait', 'pcntl_waitpid', 'pcntl_signal');
@@ -316,12 +319,12 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				$this->gfObj->debugRemoveHr=1;
 				$this->gfObj->debugPrintOpt=1;
 			}
-			//create the final message without a time, for displaying in the exception
+			//create the final message for displaying in the exception
 			$message = "FATAL: ". $message;
-			$finalMessage = $this->create_message($method, $type, $message, FALSE);
+			$finalMessage = $this->create_message($method, $type, $message);
 			
-			//show a message WITH a time, so we know when it happened in relation to other things
-			$this->gfObj->debug_print($this->create_message($method, $type, $message, TRUE));
+			//show a message with a time, so we know when it happened in relation to other things
+			$this->gfObj->debug_print($this->create_message($method, $type, $message));
 			
 			//finish up!
 			$this->kill_children();
@@ -341,19 +344,18 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * Create the message string for message_handler(), thus avoiding any 
 	 * recursive calling of said method.
 	 */
-	final private function create_message($method, $type, $message, $addTimestamp=TRUE) {
+	final private function create_message($method, $type, $message) {
 		
-		$retval = "";
-		if($addTimestamp) {
-			$x = explode('.', sprintf('%.4f', microtime(TRUE)));
-			$retval .= date('Y-m-d H:i:s') .".". $x[1] ." ";
-		}
+		$x = explode('.', sprintf('%.4f', microtime(TRUE)));
 		
+		$messagePrefix = $this->gfObj->truncate_string(str_pad(date('Y-m-d H:i:s') .".". $x[1] ." {". $type ."} ", 40), 35, "", true);
+		
+		$retval = $messagePrefix;
 		if($this->is_child()) {
-			$retval .= "{". $type ."}\t-- #". $this->childNum ." : [". $method ."] pid=(". $this->myPid .") ";
+			$retval .= " -- #". $this->childNum .": [". $method ."] pid=(". $this->myPid .") ";
 		}
 		else {
-			$retval .= "{". $type ."}\tPARENT  [". $method ."] pid=(". posix_getpid() .") ";
+			$retval .= "PARENT: [". $method ."] pid=(". posix_getpid() .") ";
 		}
 		
 		$retval .= $message;
@@ -457,6 +459,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		//NOTE: *EACH* process should have this set.
 		$pid = pcntl_fork();
 		
+		$this->spawnedChildren[$pid] = $queue;
+		
 		if($pid == -1) {
 			$this->message_handler(__METHOD__, "Unable to fork", 'FATAL');
 		}
@@ -464,7 +468,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			$this->myPid = posix_getpid();
 			if($pid) {
 				//PARENT PROCESS!!!
-				$this->message_handler(__METHOD__, "Parent pid=(". $this->myPid .") spawned child with PID=". $pid ." in QUEUE=(". $queue .")");
+				$this->message_handler(__METHOD__, "PARENT spawned child (pid=". $pid .") in QUEUE=(". $queue .")");
 				$this->childArr[$queue][$childNum] = $pid;
 				$this->pid2queue[$pid] = $queue;
 			}
@@ -728,6 +732,22 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$this->message_handler(__METHOD__, "All done!", 'DONE');
 		exit(99);
 	}//end finished()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	final public function get_myPid() {
+		return($this->myPid);
+	}//end get_myPid()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	final public function get_parentPid() {
+		return($this->parentPid);
+	}//end get_parentPid()
 	//=========================================================================
 	
 }
