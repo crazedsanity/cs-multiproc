@@ -14,9 +14,9 @@
  */
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
-require_once(dirname(__FILE__) .'/../base/globalFunctions.php');
+require_once(dirname(__FILE__) .'/../cs-content/globalFunctions.php');
 
-abstract class multiThread {
+abstract class multiThreadAbstract {
 	
 	/** PID of the parent process. */
 	private $parentPid;
