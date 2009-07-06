@@ -65,6 +65,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	/** List of children that were spawned (pid=>#) */
 	private $spawnedChildren = array();
 	
+	/** Holds value to use for registering/unregistering the tick function. */
+	private $tickFunction;
+	
 	/* ************************************************************************
 	 * 
 	 * ABSTRACT METHODS: these methods MUST be defined in extending classes.
@@ -112,7 +115,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		if(is_null($rootPath) || !strlen($rootPath)) {
 			$rootPath = dirname(__FILE__) .'/../..';
 		}
-		$this->fsObj = new cs_fileSystemClass($rootPath);
+		$this->fsObj = new cs_fileSystem($rootPath);
 		
 		$this->gfObj = new cs_globalFunctions;
 		$this->gfObj->debugPrintOpt=1;
@@ -152,7 +155,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		 * removed.
 		 */
 		declare(ticks=1);
-		register_tick_function(array($this, 'sanity_check'));
+		$this->tickFunction = array($this, 'sanity_check');
+		register_tick_function($this->tickFunction);
 	}//end __construct()
 	//=========================================================================
 	
@@ -312,13 +316,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				$exitValue = NULL;
 		}
 		
-		
-		if(!is_null($exitValue)) {
-			if(!is_object($this->gfObj)) {
-				$this->gfObj = new cs_globalFunctions;
-				$this->gfObj->debugRemoveHr=1;
-				$this->gfObj->debugPrintOpt=1;
-			}
+		//spit out some FATAL info if there's a bad/non-existent exitValue, or just spit out the info.
+		if(!is_null($exitValue) && $exitValue != 0) {
 			//create the final message for displaying in the exception
 			$message = "FATAL: ". $message;
 			$finalMessage = $this->create_message($method, $type, $message);
@@ -598,7 +597,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			for($x=0; $x<$maxChildren; $x++) {
 				$this->availableSlots[$queue][$x] = 'uninitialized';
 			}
-			$this->message_handler(__METHOD__, "availableSlots: ". $this->gfObj->debug_print($this->availableSlots,0));
 		}
 		else {
 			$this->message_handler(__METHOD__, "FATAL: child trying to change maxChildren to (". $maxChildren .") for queue (". $queue .")", 'FATAL');
@@ -722,7 +720,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			
 			//stop doing stuff as ticks happen, so we don't "die abnormally" due
 			//	to a missing lockfile.
-			unregister_tick_function();
+			unregister_tick_function($this->tickFunction);
 			
 			//drop the lockfile, tell 'em what happened, and die.
 			$this->remove_lockfile();
