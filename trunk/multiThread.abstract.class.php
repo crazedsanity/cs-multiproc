@@ -15,8 +15,9 @@
 
 require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystemClass.php');
 require_once(dirname(__FILE__) .'/../cs-content/globalFunctions.php');
+require_once(dirname(__FILE__) .'/../cs-versionparse/cs-version.abstract.class.php');
 
-abstract class multiThreadAbstract {
+abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	/** PID of the parent process. */
 	private $parentPid;
