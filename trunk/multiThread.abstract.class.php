@@ -62,9 +62,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	/** Links PID's to queue names. */
 	private $pid2queue=array();
 	
-	/** List of children that were spawned (pid=>#) */
-	private $spawnedChildren = array();
-	
 	/** Holds value to use for registering/unregistering the tick function. */
 	private $tickFunction;
 	
@@ -458,8 +455,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		//NOTE: *EACH* process should have this set.
 		$pid = pcntl_fork();
 		
-		$this->spawnedChildren[$pid] = $queue;
-		
 		if($pid == -1) {
 			$this->message_handler(__METHOD__, "Unable to fork", 'FATAL');
 		}
@@ -528,6 +523,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 						$this->message_handler(__METHOD__, "Found child #". $childNum ." of queue (". $qName .") with pid (". $pid .") dead", 'DEBUG');
 						
 						unset($this->childArr[$qName][$childNum]);
+						unset($this->pid2queue[$pid]);
 						$this->availableSlots[$qName][$childNum] = $pid;
 						
 						//tell the parent to handle the dead child.
@@ -746,6 +742,26 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	final public function get_parentPid() {
 		return($this->parentPid);
 	}//end get_parentPid()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	final protected function get_num_children($queue=null) {
+		#$this->gfObj->debug_print($this->
+		
+		if(strlen($queue)) {
+			$numKids = 0;
+			if(isset($this->childArr[$queue])) {
+				$numKids = count();
+			}
+		}
+		else {
+			$numKids = count($this->pid2queue);
+		}
+		
+		return($numKids);
+	}//end get_num_children()
 	//=========================================================================
 	
 }
