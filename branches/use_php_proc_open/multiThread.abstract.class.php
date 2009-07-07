@@ -88,7 +88,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * way to set $this->isInitialized
 	 */
 	public function __construct($rootPath=NULL, $lockfileName=NULL) {
-		
 		//check that some required functions are available.
 		$requiredFuncs = array('posix_getpid', 'posix_kill', 'pcntl_fork', 'pcntl_wait', 'pcntl_waitpid', 'pcntl_signal');
 		foreach($requiredFuncs as $funcName) {
@@ -122,7 +121,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		pcntl_signal(SIGUSR1, array($this, "kill_children"));
 		pcntl_signal(SIGHUP, array($this, "kill_children"));
 		pcntl_signal(SIGINT, array($this, "kill_children"));
-		pcntl_signal(SIGCHLD, array($this, "child_death"));
 		
 		
 		//everything that's required to be setup is: say it's initialized.
@@ -145,7 +143,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		 */
 		
 		declare(ticks=10);
-		$this->tickFunction = array($this, 'sanity_check');
+		$this->tickFunction = array($this, 'babysitter');
 		register_tick_function($this->tickFunction);
 	}//end __construct()
 	//=========================================================================
@@ -153,7 +151,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
-	public function sanity_check() {
+	public function babysitter() {
 		if($this->isInitialized) {
 			//check that the lockfile exists.
 			if(!$this->check_lockfile()) {
@@ -167,11 +165,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				$this->kill_children();
 				$this->message_handler(__METHOD__, "ABNORMAL DEATH (myPid was invalid)", 'FATAL');
 			}
+			else {
+				//get output of all children...
+			}
 		}
 		else {
 			$this->message_handler(__METHOD__, "Uninitialized", 'ERROR');
 		}
-	}//end sanity_check()
+	}//end babysitter()
 	//=========================================================================
 	
 	
@@ -281,20 +282,10 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * recursive calling of said method.
 	 */
 	final private function create_message($method, $type, $message) {
-		
 		$x = explode('.', sprintf('%.4f', microtime(TRUE)));
-		
 		$messagePrefix = $this->gfObj->truncate_string(str_pad(date('Y-m-d H:i:s') .".". $x[1] ." {". $type ."} ", 40), 35, "", true);
+		$retval = $messagePrefix . ": [". $method ."] pid=(". posix_getpid() .")";
 		
-		$retval = $messagePrefix;
-		if($this->is_child()) {
-			$retval .= " -- #". $this->childNum .": [". $method ."] pid=(". $this->myPid .") ";
-		}
-		else {
-			$retval .= "PARENT: [". $method ."] pid=(". posix_getpid() .") ";
-		}
-		
-		$retval .= $message;
 		return($retval);
 	}//end create_message()
 	//=========================================================================
@@ -387,6 +378,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	public function run_script() {
+		throw new exception(__METHOD__ .": fix me");
+	}//end run_script()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
 	/**
 	 * Remove any dead children.
 	 */
@@ -432,17 +431,12 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	protected function wait_for_children($queue=NULL) {
-		if($this->is_parent()) {
-			if(is_null($queue)) {
-				$queue = $this->defaultQueue;
-			}
-			while(count($this->childArr[$queue]) != 0) {
-				$this->clean_children();
-				usleep(500);
-			}
+		if(is_null($queue)) {
+			$queue = $this->defaultQueue;
 		}
-		else {
-			$this->message_handler(__METHOD__, "Called by a child... your script has gone wonky", 'ERROR');
+		while(count($this->childArr[$queue]) != 0) {
+			$this->clean_children();
+			usleep(500);
 		}
 	}//end wait_for_children()
 	//=========================================================================
@@ -451,19 +445,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	private function remove_lockfile() {
-		if($this->is_parent()) {
-			$this->fsObj->cd("/");
-			$lsData = $this->fsObj->ls();
-			if(is_array($lsData[$this->lockfile])) {
-				$removeResult = $this->fsObj->rm($this->lockfile);
-				$this->message_handler(__METHOD__, "Successfully removed lockfile");
-			}
-			else {
-				$this->message_handler(__METHOD__, "Could not find lockfile?", 'FATAL');
-			}
+		$this->fsObj->cd("/");
+		$lsData = $this->fsObj->ls();
+		if(is_array($lsData[$this->lockfile])) {
+			$removeResult = $this->fsObj->rm($this->lockfile);
+			$this->message_handler(__METHOD__, "Successfully removed lockfile");
 		}
 		else {
-			$this->message_handler(__METHOD__, "Child attempted to remove the lockfile", 'ERROR');
+			$this->message_handler(__METHOD__, "Could not find lockfile?", 'FATAL');
 		}
 	}//end remove_lockfile()
 	//=========================================================================
