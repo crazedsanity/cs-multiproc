@@ -25,8 +25,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	/** PID of the *current* process (this might be the parent or a child) */
 	private $myPid;
 	
-	/** Numerically-indexed array of {procNum}=>{childPID}, starting at 0. */
-	protected $childArr = array();
+	/** Numerically-indexed array with index being child # and the value (array) containing various info about it. */
+	private $children = array();
 	
 	/** Whether it's a daemon or not (a daemon will fork itself from the originating process). */
 	private $isDaemon=NULL;
@@ -43,20 +43,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	/** The maximum number of children that can be spawned. */
 	private $maxChildren=NULL;
 	
-	/** Array of slots, numerically index up to ($maxChildren - 1), holding PID of it's previous child, or NULL if unused. */
-	private $availableSlots=array();
-	
-	/** The default queue name (the first queue specified to "set_max_children()") */
-	private $defaultQueue=NULL;
-	
-	/** Links PID's to queue names. */
-	private $pid2queue=array();
-	
 	/** Holds value to use for registering/unregistering the tick function. */
 	private $tickFunction;
 	
 	/** Absolute path to a *.lock file so the script doesn't trip over itself */
 	private $lockFile;
+	
+	/** Name used to generate name of lockfile & to prepend to child process output files. */
+	private $processName;
 	
 	/* ************************************************************************
 	 * 
@@ -87,7 +81,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * The constructor.  NOTE: this *MUST* be extended, as it is the ONLY 
 	 * way to set $this->isInitialized
 	 */
-	public function __construct($rootPath=NULL, $lockfileName=NULL) {
+	public function __construct($rootPath=NULL, $processName=NULL) {
 		//check that some required functions are available.
 		$requiredFuncs = array('posix_getpid', 'posix_kill', 'pcntl_fork', 'pcntl_wait', 'pcntl_waitpid', 'pcntl_signal');
 		foreach($requiredFuncs as $funcName) {
@@ -110,10 +104,11 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$this->gfObj->debugRemoveHr=1;
 		
 		//create a lockfile to ensure we don't trip over ourselves.
-		if(is_null($lockfileName)) {
-			$lockfileName = __CLASS__;
+		if(is_null($processName)) {
+			$processName = __CLASS__;
 		}
-		$this->lockfile = $lockfileName .'.lock';
+		$this->processName = $processName;
+		$this->lockfile = $processName .'.lock';
 		$this->create_lockfile($this->lockfile);
 		
 		
@@ -183,6 +178,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 */
 	protected function daemonize() {
 		$this->message_handler(__METHOD__, "Cannot daemonize, not implemented yet", 'ERROR');
+		//TODO: use pcntl_fork() here: the parent should die, while the child carries on.  :) 
 	}//end daemonize()
 	//=========================================================================
 	
@@ -190,8 +186,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	/**
-	 * Checks if the lockfile still exists: if that disappears, the parent 
-	 * process will kill all of it's children and exit.
+	 * Checks if the lockfile still exists: if that disappears, we'll attempt to 
+	 * kill all the child processes before dying.
 	 */
 	protected function check_lockfile() {
 		$this->fsObj->cd("/");
@@ -378,8 +374,42 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
-	public function run_script() {
-		throw new exception(__METHOD__ .": fix me");
+	final public function run_script($command, $cwd=null) {
+		$childNum = count($this->children);
+		
+		$logFile = $this->fsObj->root .'/'. $this->processName .'-child'. $childNum .'-error.log';
+		if(file_exists($logFile)) {
+			throw new exception(__METHOD__ .": file already exists (". $logFile .")");
+		}
+		else {
+			$descriptorSpec = array(
+				0	=> array('pipe',	"r"),
+				1	=> array('pipe',	"w"),
+				2	=> array('file',	$logFile, "a")
+			);
+			$this->childPipes[$childNum] = array();
+			if(is_null($cwd)) {
+				$cwd = $this->fsObj->root;
+			}
+			
+			$this->children[$childNum]['pipes'] = array();
+			$this->children[$childNum]['resource'] = proc_open($command, $descriptorSpec, $this->children[$childNum]['pipes'], $cwd);
+			$this->children[$childNum]['info'] = proc_get_status($this->children[$childNum]['resource']);
+		}
+		
+		/*
+		 * if $this->processName=="inventoryQueue:"
+		 * 
+		 * ..../rw/inventoryQueue-child0-error.log
+		 * ..../rw/inventoryQueue-child1-error.log
+		 * 
+		 * If another process starts called "inventoryProcessor"
+		 * 
+		 * ..../rw/inventoryProcessor-child0-error.log
+		 * ..../rw/inventoryProcessor-child1-error.log
+		 */
+		
+		return($childNum);
 	}//end run_script()
 	//=========================================================================
 	
@@ -410,12 +440,17 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	/**
-	 * A way to set the private "maxChildren" property.  NOTE: when creating 
-	 * multiple queues, this method must be called multiple times, one for 
-	 * each queue.  
+	 * A way to set the private "maxChildren" property. 
 	 */
-	protected function set_max_children($maxChildren, $queue=0) {
+	protected function set_max_children($maxChildren) {
 		throw new exception(__METHOD__ .": fix me");
+		
+		if(is_numeric($maxChildren) && $maxChildren > 0) {
+			$this->maxChildren = $maxChildren;
+		}
+		else {
+			throw new exception(__METHOD__ .": invalid setting (". $maxChildren ."), must be greater than 0");
+		}
 	}//end set_max_children()
 	//=========================================================================
 	
