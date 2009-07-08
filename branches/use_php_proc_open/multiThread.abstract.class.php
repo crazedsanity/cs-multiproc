@@ -393,7 +393,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$childNum = count($this->children);
 		
 		$this->message_handler(__METHOD__, "starting...");
-		$logFilePrefix = $this->fsObj->root .'/'. $this->processName .'-child'. $childNum;
+		$myTimestamp = time();
+		$logFilePrefix = $this->fsObj->root .'/'. $this->processName .'-child'. 
+				$childNum .'-pid'. $this->myPid .'-'. $myTimestamp;
 		
 		$stdoutFile = $logFilePrefix .'-stdout.log';
 		$stderrFile = $logFilePrefix .'-stderr.log';
@@ -461,10 +463,12 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		//pull information about it.
 		$pidInfo = $this->get_child_status($childNum);
 		
-		//get it's output.
+		//get output from files then delete the files.
+		//TODO: should this use cs_fileSystem{}?
 		$output = array();
-		foreach($this->children[$childNum]['files'] as $i=>$f) {
-			$output[$i] = file_get_contents($f);
+		foreach($this->children[$childNum]['files'] as $index=>$logfile) {
+			$output[$index] = file_get_contents($logfile);
+			unlink($logfile);
 		}
 		
 		//close the process.
