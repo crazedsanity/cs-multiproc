@@ -81,7 +81,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * The constructor.  NOTE: this *MUST* be extended, as it is the ONLY 
 	 * way to set $this->isInitialized
 	 */
-	public function __construct($rootPath=NULL, $processName=NULL) {
+	public function __construct($rootPath=NULL, $processName=NULL, $waitForExisting=NULL) {
 		//check that some required functions are available.
 		$requiredFuncs = array('posix_getpid', 'posix_kill', 'pcntl_fork', 'pcntl_wait', 'pcntl_waitpid', 'pcntl_signal');
 		foreach($requiredFuncs as $funcName) {
@@ -109,7 +109,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		}
 		$this->processName = $processName;
 		$this->lockfile = $processName .'.lock';
-		$this->create_lockfile($this->lockfile);
+		$this->create_lockfile($this->lockfile, $waitForExisting);
 		
 		
 		pcntl_signal(SIGTERM, array($this, "signal_handler"));
@@ -185,16 +185,20 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	/**
-	 * Checks if the lockfile still exists: if that disappears, we'll attempt to 
-	 * kill all the child processes before dying.
+	 * Checks if the lockfile exists: false if it is missing, or the first line 
+	 * (which should be the PID) if it does.
 	 */
 	protected function check_lockfile() {
 		$this->fsObj->cd("/");
 		$output = $this->fsObj->ls($this->lockfile);
 		
-		$retval = FALSE;
+		$retval = false;
 		if(is_array($output[$this->lockfile])) {
-			$retval = $output[$this->lockfile]['modified'];
+			$contents = $this->fsObj->read($this->lockfile, true);
+			$retval = array(
+				'pid'		=> trim($contents[0]),
+				'modified'	=> $output[$this->lockfile]['modified']
+			);
 		}
 		return($retval);
 	}//end check_lockfile()
@@ -310,6 +314,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$lockfileExists = $this->check_lockfile();
 		$goodToGo = FALSE;
 		if($lockfileExists) {
+			//another process is running: wait for it.
 			$secondsBetweenChecks = 5;
 			$secondsToWait = (($minutesToWait * 60) - $secondsBetweenChecks);
 			$maxLoops = 500;
@@ -322,13 +327,15 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				$this->message_handler(__METHOD__, "starting nap at ". $startTime);
 				while($currentLoop < $maxLoops && $secondsWaited < $secondsToWait) {
 					$secondsWaited = (time() - $startTime);
-					$lockfileTime = $this->check_lockfile();
+					$info = $this->check_lockfile();
+					$lockfileTime = $info['modified'];
+					$pid = $info['pid'];
 					if(is_numeric($lockfileTime)) {
-						$this->message_handler(__METHOD__, " lockfile still present (created at ". $lockfileTime ."), slept for (". $secondsWaited  .")", 'DEBUG');
+						$this->message_handler(__METHOD__, " lockfile still present (created at ". $lockfileTime .", pid=". $pid ."), slept for (". $secondsWaited  .")", 'DEBUG');
 						sleep($secondsBetweenChecks);
 					}
 					else {
-						$this->message_handler(__METHOD__, "file disappeared at (". time() .")", 'NOTICE');
+						$this->message_handler(__METHOD__, "file disappeared at (". time() .")... ". $this->gfObj->debug_print($info,0), 'NOTICE');
 						$goodToGo = TRUE;
 						break;
 					}
@@ -445,7 +452,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				}
 			}
 		}
-		$this->message_handler(__METHOD__, "livingChildren=(". $livingChildren .")");
 		return($livingChildren);
 	}//end clean_children()
 	//=========================================================================
