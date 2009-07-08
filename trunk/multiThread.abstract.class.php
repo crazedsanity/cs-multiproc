@@ -52,6 +52,12 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	/** Name used to generate name of lockfile & to prepend to child process output files. */
 	private $processName;
 	
+	/** Number of seconds to wait between calls to checkin(). */
+	private $checkinDelay=1;
+	
+	/** Timestamp indicating when the last time babysitter() called checkin() */
+	private $lastCheckin;
+	
 	/* ************************************************************************
 	 * 
 	 * ABSTRACT METHODS: these methods MUST be defined in extending classes.
@@ -68,13 +74,16 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	
+	//=========================================================================
+	/**
+	 * Called from the registered tick function every second (calling the method 
+	 * set_checkin_delay() can increase this delay). 
+	 */
+	abstract protected function checkin();
+	//=========================================================================
 	
 	
-	/* ************************************************************************
-	 * 
-	 * Methods that may be called from the extending classes.
-	 * 
-	 *********************************************************************** */
+	
 	
 	//=========================================================================
 	/**
@@ -160,7 +169,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				$this->message_handler(__METHOD__, "ABNORMAL DEATH (myPid was invalid)", 'FATAL');
 			}
 			else {
-				//TODO: get output of all children...
+				//handle calling the checkin() method in regular intervals
+				$now = time();
+				$sinceLast = $now - $this->lastCheckin;
+				if($sinceLast >= $this->checkinDelay) {
+					$this->lastCheckin = $now;
+					$this->message_handler(__METHOD__, "calling checkin after delay of (". $sinceLast .") seconds");
+					$this->checkin();
+				}
 			}
 		}
 		else {
@@ -275,6 +291,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			$finalMessage = $this->create_message($method, $type, $message);
 			
 			//show a message with a time, so we know when it happened in relation to other things
+			//TODO: put this into a special log for the main script instead of STDOUT.
 			$this->gfObj->debug_print($this->create_message($method, $type, $message));
 			
 			//finish up!
@@ -507,6 +524,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * A way to set the private "maxChildren" property. 
 	 */
 	protected function set_max_children($maxChildren) {
+		//TODO: FIX ME
 		throw new exception(__METHOD__ .": fix me");
 		
 		if(is_numeric($maxChildren) && $maxChildren > 0) {
@@ -593,7 +611,11 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	final protected function get_num_children($queue=null) {
-		throw new exception(__METHOD__ .": fix me");
+		$livingChildren = 0;
+		if(is_array($this->children)) {
+			$livingChildren = count($this->children);
+		}
+		return($livingChildren);
 	}//end get_num_children()
 	//=========================================================================
 	
@@ -606,6 +628,20 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	}//end signal_handler()
 	//=========================================================================
 	
+	
+	
+	//=========================================================================
+	/**
+	 * 
+	 */
+	final protected function set_checkin_delay($secondsToWait) {
+		$myDelay = $secondsToWait;
+		if(!is_numeric($secondsToWait) || $secondsToWait < 1) {
+			$myDelay = 1;
+		}
+		$this->checkinDelay = $myDelay;
+	}//end set_checkin_delay()
+	//=========================================================================
 }
 
 ?>
