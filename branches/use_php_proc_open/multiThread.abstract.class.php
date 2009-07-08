@@ -64,7 +64,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * cleanup that needs to be done, or processing of output files, etc. should 
 	 * be done within this method.
 	 */
-	abstract protected function dead_child_handler($childNum, $qName, $exitStatus);
+	abstract protected function dead_child_handler($childNum, $exitStatus, array $output);
 	
 	
 	
@@ -161,7 +161,6 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			}
 			else {
 				//TODO: get output of all children...
-				#$this->message_handler(__METHOD__, "ok... ", 'DEBUG');
 			}
 		}
 		else {
@@ -216,7 +215,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 					$this->gfObj->string_from_array($childInfo, 'text_list'));
 			
 			if($res === true) {
-				unset($this->children[$childNum]);
+				#unset($this->children[$childNum]);
+				$this->child_death($childNum);
 				$this->message_handler(__METHOD__, " -------- removed child #". $childNum);
 			}
 		}
@@ -393,25 +393,29 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$childNum = count($this->children);
 		
 		$this->message_handler(__METHOD__, "starting...");
-		$logFile = $this->fsObj->root .'/'. $this->processName .'-child'. $childNum .'-error.log';
-		if(file_exists($logFile)) {
-			throw new exception(__METHOD__ .": file already exists (". $logFile .")");
+		$logFilePrefix = $this->fsObj->root .'/'. $this->processName .'-child'. $childNum;
+		
+		$stdoutFile = $logFilePrefix .'-stdout.log';
+		$stderrFile = $logFilePrefix .'-stderr.log';
+		
+		$descriptorSpec = array(
+			0	=> array('pipe',	"r"),									//stdin (child reads data from parent through this)
+			1	=> array('file',	$stdoutFile, "w"),	//stdout (child writes to this one)
+			2	=> array('file',	$stderrFile, "w")		//STDERR (errors written here)
+		);
+		$this->childPipes[$childNum] = array();
+		if(is_null($cwd)) {
+			$cwd = $this->fsObj->root;
 		}
-		else {
-			$descriptorSpec = array(
-				0	=> array('pipe',	"r"),
-				1	=> array('pipe',	"w"),
-				2	=> array('file',	$logFile, "a")
-			);
-			$this->childPipes[$childNum] = array();
-			if(is_null($cwd)) {
-				$cwd = $this->fsObj->root;
-			}
-			
-			$this->children[$childNum]['pipes'] = array();
-			$this->children[$childNum]['resource'] = proc_open($command, $descriptorSpec, $this->children[$childNum]['pipes'], $cwd);
-			$this->children[$childNum]['info'] = proc_get_status($this->children[$childNum]['resource']);
-		}
+		
+		$this->children[$childNum]['pipes'] = array();
+		$this->children[$childNum]['resource'] = proc_open($command, $descriptorSpec, $this->children[$childNum]['pipes'], $cwd);
+		$this->children[$childNum]['info'] = proc_get_status($this->children[$childNum]['resource']);
+		$this->children[$childNum]['files'] = array(
+			'output'	=> $stdoutFile,
+			'errors'	=> $stderrFile
+		);
+		
 		$this->message_handler(__METHOD__, "DONE, childNum=(". $childNum .")");
 		
 		return($childNum);
@@ -434,7 +438,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				}
 				else {
 					$this->message_handler(__METHOD__, "Child #". $childNum ." (pid=". $childInfo['pid'] .") not running");
-					unset($this->children[$childNum]);
+					#unset($this->children[$childNum]);
+					$this->child_death($childNum);
 				}
 			}
 		}
@@ -450,8 +455,38 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * Handler for child death.  NOTE: need to be able to report to the extending 
 	 * class which child actually died.
 	 */
-	public function child_death() {
-		throw new exception(__METHOD__ .": fix me");
+	private function child_death($childNum) {
+		$this->message_handler(__METHOD__, "running...");
+		
+		//pull information about it.
+		$pidInfo = $this->get_child_status($childNum);
+		
+		//get it's output.
+		$output = array();
+		foreach($this->children[$childNum]['files'] as $i=>$f) {
+			$output[$i] = file_get_contents($f);
+		}
+		
+		//close the process.
+		proc_close($this->children[$childNum]['resource']);
+		
+		//bury the body.
+		unset($this->children[$childNum]);
+		
+		//determine the exitCode...
+		if($pidInfo['signaled'] == true) {
+			$exitCode = $pidInfo['termsig'];
+		}
+		elseif($pidInfo['stopped'] == true) {
+			$exitCode = $pidInfo['stopsig'];
+		}
+		else {
+			//NOTE FROM PHP.NET::: Only first call of this function return real value, next calls return -1.
+			$exitCode = $pidInfo['exitcode'];
+			$this->message_handler(__METHOD__, "Using exitcode (". $exitCode .")");
+		}
+		
+		$this->dead_child_handler($childNum, $exitCode, $output);
 	}//end child_death()
 	//=========================================================================
 	
