@@ -112,11 +112,10 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$this->create_lockfile($this->lockfile);
 		
 		
-		pcntl_signal(SIGTERM, array($this, "kill_children"));
-		pcntl_signal(SIGUSR1, array($this, "kill_children"));
-		pcntl_signal(SIGHUP, array($this, "kill_children"));
-		pcntl_signal(SIGINT, array($this, "kill_children"));
-		
+		pcntl_signal(SIGTERM, array($this, "signal_handler"));
+		pcntl_signal(SIGUSR1, array($this, "signal_handler"));
+		pcntl_signal(SIGHUP, array($this, "signal_handler"));
+		pcntl_signal(SIGINT, array($this, "signal_handler"));
 		
 		//everything that's required to be setup is: say it's initialized.
 		$this->isInitialized=TRUE;
@@ -137,7 +136,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		 * removed.
 		 */
 		
-		declare(ticks=10);
+		declare(ticks=1);
 		$this->tickFunction = array($this, 'babysitter');
 		register_tick_function($this->tickFunction);
 	}//end __construct()
@@ -161,7 +160,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				$this->message_handler(__METHOD__, "ABNORMAL DEATH (myPid was invalid)", 'FATAL');
 			}
 			else {
-				//get output of all children...
+				//TODO: get output of all children...
+				#$this->message_handler(__METHOD__, "ok... ", 'DEBUG');
 			}
 		}
 		else {
@@ -205,7 +205,21 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	public function kill_children() {
-		throw new exception(__METHOD__ .": FIX ME");
+		$this->message_handler(__METHOD__, "called... ", 'DEBUG');
+		
+		foreach($this->children as $childNum=>$info) {
+			$res = proc_terminate($info['resource']);
+			
+			
+			$childInfo = $this->get_child_status($childNum);
+			$this->message_handler(__METHOD__, "Signalled child #". $childNum ." to terminate (". $res ."), INFO::: ". 
+					$this->gfObj->string_from_array($childInfo, 'text_list'));
+			
+			if($res === true) {
+				unset($this->children[$childNum]);
+				$this->message_handler(__METHOD__, " -------- removed child #". $childNum);
+			}
+		}
 		
 	}//end kill_children()
 	//=========================================================================
@@ -280,7 +294,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	final private function create_message($method, $type, $message) {
 		$x = explode('.', sprintf('%.4f', microtime(TRUE)));
 		$messagePrefix = $this->gfObj->truncate_string(str_pad(date('Y-m-d H:i:s') .".". $x[1] ." {". $type ."} ", 40), 35, "", true);
-		$retval = $messagePrefix . ": [". $method ."] pid=(". posix_getpid() .")";
+		$retval = $messagePrefix . ": [". $method ."] pid=(". posix_getpid() ."):: ". $message;
 		
 		return($retval);
 	}//end create_message()
@@ -361,13 +375,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	private function get_child_status($childNum) {
 		if(is_numeric($childNum) && $childNum >= 0) {
 			$status = array();
-			if(isset($this->children[$childNum])) {
-				$status = proc_get_status($this->children[$childNum]);
+			if(isset($this->children[$childNum]) && is_resource($this->children[$childNum]['resource'])) {
+				$status = proc_get_status($this->children[$childNum]['resource']);
 			}
 		}
 		else {
 			throw new exception(__METHOD__ .": invalid childNum (". $childNum .")");
 		}
+		return($status);
 	}//end get_child_status()
 	//=========================================================================
 	
@@ -377,6 +392,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	final public function run_script($command, $cwd=null) {
 		$childNum = count($this->children);
 		
+		$this->message_handler(__METHOD__, "starting...");
 		$logFile = $this->fsObj->root .'/'. $this->processName .'-child'. $childNum .'-error.log';
 		if(file_exists($logFile)) {
 			throw new exception(__METHOD__ .": file already exists (". $logFile .")");
@@ -396,18 +412,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			$this->children[$childNum]['resource'] = proc_open($command, $descriptorSpec, $this->children[$childNum]['pipes'], $cwd);
 			$this->children[$childNum]['info'] = proc_get_status($this->children[$childNum]['resource']);
 		}
-		
-		/*
-		 * if $this->processName=="inventoryQueue:"
-		 * 
-		 * ..../rw/inventoryQueue-child0-error.log
-		 * ..../rw/inventoryQueue-child1-error.log
-		 * 
-		 * If another process starts called "inventoryProcessor"
-		 * 
-		 * ..../rw/inventoryProcessor-child0-error.log
-		 * ..../rw/inventoryProcessor-child1-error.log
-		 */
+		$this->message_handler(__METHOD__, "DONE, childNum=(". $childNum .")");
 		
 		return($childNum);
 	}//end run_script()
@@ -420,7 +425,21 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * Remove any dead children.
 	 */
 	public function clean_children() {
-		throw new exception(__METHOD__ .": fix me");
+		$livingChildren = 0;
+		if(is_array($this->children) && count($this->children)) {
+			foreach($this->children as $childNum=>$data) {
+				$childInfo = $this->get_child_status($childNum);
+				if($childInfo['running'] == true) {
+					$livingChildren++;
+				}
+				else {
+					$this->message_handler(__METHOD__, "Child #". $childNum ." (pid=". $childInfo['pid'] .") not running");
+					unset($this->children[$childNum]);
+				}
+			}
+		}
+		$this->message_handler(__METHOD__, "livingChildren=(". $livingChildren .")");
+		return($livingChildren);
 	}//end clean_children()
 	//=========================================================================
 	
@@ -465,14 +484,19 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
-	protected function wait_for_children($queue=NULL) {
-		if(is_null($queue)) {
-			$queue = $this->defaultQueue;
+	protected function wait_for_children() {
+		$this->message_handler(__METHOD__, "starting...");
+		while(count($this->children) != 0) {
+			$livingChildren = $this->clean_children();
+			if($livingChildren > 0) {
+				$this->message_handler(__METHOD__, "waiting for children (". $livingChildren .")");
+				sleep(1);
+			}
+			else {
+				$this->message_handler(__METHOD__, "all children died (". $livingChildren .")");
+			}
 		}
-		while(count($this->childArr[$queue]) != 0) {
-			$this->clean_children();
-			usleep(500);
-		}
+		$this->message_handler(__METHOD__, "done");
 	}//end wait_for_children()
 	//=========================================================================
 	
@@ -526,6 +550,15 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	final protected function get_num_children($queue=null) {
 		throw new exception(__METHOD__ .": fix me");
 	}//end get_num_children()
+	//=========================================================================
+	
+	
+	
+	//=========================================================================
+	final public function signal_handler() {
+		$this->message_handler(__METHOD__, "Caught signal...");
+		$this->kill_children();
+	}//end signal_handler()
 	//=========================================================================
 	
 }
