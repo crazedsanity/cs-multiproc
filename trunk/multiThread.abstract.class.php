@@ -77,7 +77,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * cleanup that needs to be done, or processing of output files, etc. should 
 	 * be done within this method.
 	 */
-	abstract protected function dead_child_handler($childNum, $exitStatus, array $output);
+	abstract protected function dead_child_handler($childNum, $qName, $exitStatus);
 	
 	
 	
