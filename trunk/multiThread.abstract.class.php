@@ -65,12 +65,14 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 ********************************************************************** */
 	//Here's the list of methods that need to be declared in the classes that extend this one.
 	
+	//=========================================================================
 	/**
 	 * Should handle the given child number within the given queue's death: any 
 	 * cleanup that needs to be done, or processing of output files, etc. should 
 	 * be done within this method.
 	 */
 	abstract protected function dead_child_handler($childNum, $exitStatus, array $output);
+	//=========================================================================
 	
 	
 	
@@ -154,6 +156,10 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Method used to check the status of children (called every X ticks, as defined
+	 * in the constructor via a "define()" call).
+	 */
 	public function babysitter() {
 		if($this->isInitialized) {
 			//check that the lockfile exists.
@@ -190,10 +196,11 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	//=========================================================================
 	/**
 	 * Turn the process into a daemon.
+	 * 
+	 * TODO: use pcntl_fork() here: the parent should die, while the child carries on.  :)
 	 */
 	protected function daemonize() {
 		$this->message_handler(__METHOD__, "Cannot daemonize, not implemented yet", 'ERROR');
-		//TODO: use pcntl_fork() here: the parent should die, while the child carries on.  :) 
 	}//end daemonize()
 	//=========================================================================
 	
@@ -223,6 +230,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Kills all child processes (such as if the parent dies).
+	 */
 	public function kill_children() {
 		$this->message_handler(__METHOD__, "called... ", 'DEBUG');
 		
@@ -396,11 +406,21 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Retrieve current status of the child.  If the child has died, the exitcode 
+	 * is cached for later.
+	 */
 	private function get_child_status($childNum) {
 		if(is_numeric($childNum) && $childNum >= 0) {
 			$status = array();
 			if(isset($this->children[$childNum]) && is_resource($this->children[$childNum]['resource'])) {
 				$status = proc_get_status($this->children[$childNum]['resource']);
+				
+				//MUST cache the exitcode IMMEDIATELY if the "running" flag is false
+				if(!$status['running'] && !isset($this->children[$childNum]['exitStatus'])) {
+					$this->children[$childNum]['exitStatus'] = $status['exitcode'];
+					$this->message_handler(__METHOD__, "capturing exitcode (". $status['exitcode'] .")", 'DEBUG');
+				}
 			}
 		}
 		else {
@@ -413,6 +433,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Start a script as another process.
+	 */
 	final public function run_script($command, $cwd=null) {
 		$childNum = count($this->children);
 		
@@ -434,12 +457,16 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 			$cwd = $this->fsObj->root;
 		}
 		
+		//spawn the child process... 
 		$this->children[$childNum]['pipes'] = array();
 		$this->children[$childNum]['resource'] = proc_open($command, $descriptorSpec, $this->children[$childNum]['pipes'], $cwd);
-		$this->children[$childNum]['info'] = proc_get_status($this->children[$childNum]['resource']);
+		
+		$childStatus = proc_get_status($this->children[$childNum]['resource']);
+		$this->children[$childNum]['pid'] = $childStatus['pid'];
+		$this->children[$childNum]['command'] = $childStatus['command'];
 		$this->children[$childNum]['files'] = array(
-			'output'	=> $stdoutFile,
-			'errors'	=> $stderrFile
+			'stdout'	=> $stdoutFile,
+			'stderr'	=> $stderrFile
 		);
 		
 		$this->message_handler(__METHOD__, "DONE, childNum=(". $childNum .")");
@@ -497,6 +524,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		//close the process.
 		proc_close($this->children[$childNum]['resource']);
 		
+		//get the cached exitStatus...
+		$cachedExitStatus = $this->children[$childNum]['exitStatus'];
+		
 		//bury the body.
 		unset($this->children[$childNum]);
 		
@@ -509,7 +539,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		}
 		else {
 			//NOTE FROM PHP.NET::: Only first call of this function return real value, next calls return -1.
-			$exitCode = $pidInfo['exitcode'];
+			$exitCode = $cachedExitStatus;
 			$this->message_handler(__METHOD__, "Using exitcode (". $exitCode .")");
 		}
 		
@@ -547,6 +577,10 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Method that will wait for all children to finish before stopping (don't 
+	 * call it unless you are SURE the script should just wait).
+	 */
 	protected function wait_for_children() {
 		$this->message_handler(__METHOD__, "starting...");
 		while(count($this->children) != 0) {
@@ -566,6 +600,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Destroy the lock file so it can be run again later.
+	 */
 	private function remove_lockfile() {
 		$this->fsObj->cd("/");
 		$lsData = $this->fsObj->ls();
@@ -582,6 +619,10 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Indicates the script has completed EVERYTHING it needs to do: this will 
+	 * wait for children to die before removing the lock file & exiting.
+	 */
 	protected function finished() {
 		//wait for the children to finish-up.
 		$this->wait_for_children();
@@ -602,6 +643,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Retrieve pid of THIS (parent) script.
+	 */
 	final public function get_myPid() {
 		return($this->myPid);
 	}//end get_myPid()
@@ -610,6 +654,9 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Retrieve number of active children.
+	 */
 	final protected function get_num_children($queue=null) {
 		$livingChildren = 0;
 		if(is_array($this->children)) {
@@ -622,6 +669,11 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	
 	//=========================================================================
+	/**
+	 * Method called in the event a signal is caught.
+	 * 
+	 * TODO: handle SIGHUP properly -- pass signal to children?  
+	 */
 	final public function signal_handler() {
 		$this->message_handler(__METHOD__, "Caught signal...");
 		$this->kill_children();
@@ -632,7 +684,8 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	
 	//=========================================================================
 	/**
-	 * 
+	 * Set the number of seconds to wait between calls to checkin()--this is done
+	 * by the babysitter() method.
 	 */
 	final protected function set_checkin_delay($secondsToWait) {
 		$myDelay = $secondsToWait;
