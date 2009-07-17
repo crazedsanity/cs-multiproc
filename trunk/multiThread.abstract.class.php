@@ -178,9 +178,13 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 				//handle calling the checkin() method in regular intervals
 				$now = time();
 				$sinceLast = $now - $this->lastCheckin;
-				if($sinceLast >= $this->checkinDelay) {
+				if($sinceLast >= $this->checkinDelay || !is_numeric($this->lastCheckin)) {
+					$showThis = $sinceLast;
+					if(!is_numeric($this->lastCheckin)) {
+						$showThis = '--';
+					}
 					$this->lastCheckin = $now;
-					$this->message_handler(__METHOD__, "calling checkin after delay of (". $sinceLast .") seconds");
+					$this->message_handler(__METHOD__, "calling checkin after delay of (". $showThis .") seconds");
 					$this->checkin();
 				}
 			}
