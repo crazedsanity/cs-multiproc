@@ -13,9 +13,6 @@
  * TODO: allow for non-parent classes to extend this one (if the parent creates a new class, it should also have access to these features).
  */
 
-require_once(dirname(__FILE__) .'/../cs-content/cs_fileSystem.class.php');
-require_once(dirname(__FILE__) .'/../cs-content/cs_globalFunctions.class.php');
-require_once(dirname(__FILE__) .'/../cs-versionparse/cs_version.abstract.class.php');
 
 abstract class multiThreadAbstract extends cs_versionAbstract {
 	
