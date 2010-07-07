@@ -339,6 +339,7 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 	 * Creates a lockfile to avoid other processes from tripping over this one.
 	 */
 	private function create_lockfile($name, $minutesToWait=NULL) {
+		$this->message_handler(__METHOD__, "starting, lockfile=(". $name .")", 'DEBUG');
 		$lockfileExists = $this->check_lockfile();
 		$goodToGo = FALSE;
 		if($lockfileExists) {
@@ -391,6 +392,10 @@ abstract class multiThreadAbstract extends cs_versionAbstract {
 		$retval = FALSE;
 		if($goodToGo) {
 			//create the file & drop our PID in there.
+			$this->message_handler(__METHOD__, "Creating lockfile (". $this->lockfile .").... ", 'DEBUG');
+			if(!strlen($this->lockfile)) {
+				$this->message_handler(__METHOD__, "Cannot create lockfile, invalid length (". $this->lockfile .")", 'FATAL');
+			}
 			$this->fsObj->create_file($this->lockfile, TRUE);
 			$this->fsObj->openFile($this->lockfile);
 			$this->fsObj->append_to_file($this->myPid);
