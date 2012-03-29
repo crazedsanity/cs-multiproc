@@ -15,11 +15,13 @@ ideology of it: a main script (parent) is written that implements cs-multiThread
 and is used to run external scripts (children).  The theory is as follows:
 
 PARENT
+
  * spawns external scripts
  * handles communication (i.e. logging output, errors, & exit status to db)
  * handles creating new child when old child dies (as necessary)
 
 CHILD
+
  * handles processing
  * communicates with parent (optional)
 	
