@@ -14,13 +14,13 @@ ideology of it: a main script (parent) is written that implements cs-multiThread
 and is used to run external scripts (children).  The theory is as follows:
 
 PARENT:::
-	* spawns external scripts
-	* handles communication (i.e. logging output, errors, & exit status to db)
-	* handles creating new child when old child dies (as necessary)
+ * spawns external scripts
+ * handles communication (i.e. logging output, errors, & exit status to db)
+ * handles creating new child when old child dies (as necessary)
 
 CHILD:::
-	* handles processing
-	* communicates with parent (optional)
+ * handles processing
+ * communicates with parent (optional)
 	
 
 The original idea was to have one script: a portion of the script is written to 
@@ -30,7 +30,8 @@ simply monitor the child processes, spawning a limited number of them and
 spawning more as needed: the child process are set to run a limited set of 
 data and then die.  
 
-== OLD METHOD ==
+OLD METHOD
+----------
 
 One script handles everything, executing one part of the script only if it is 
 the parent, running the other part if it is a child.  All logic is contained 
@@ -44,7 +45,8 @@ As each one dies (indicating the file is completed), the parent handles cleanup
 and then spawns another child for the next file (if there isn't anymore, it scans 
 for new ones until all children are dead & no more files are left to process).
 
-== NEW METHOD ==
+NEW METHOD
+----------
 
 The main difference between the old method and the new one is where the code is
 stored.  In the old method, all code had to be stored in the main script, and 
