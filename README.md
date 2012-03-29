@@ -2,10 +2,10 @@ PHP-Based Multi-Thread Libraries
 =================
 
 
- This library requires two classes from the cs-content system 
- (http://sf.net/projects/cs-content):
-  * cs_fileSystemClass.php
-  * cs_globalFunctions.php
+This library requires two classes from the cs-content system 
+(http://sf.net/projects/cs-content):
+ ** cs_fileSystemClass.php
+ ** cs_globalFunctions.php
 
   
   
