@@ -2,11 +2,6 @@
 /*
  * Created on Aug 9, 2007
  * 
- * SVN Signature::::::: $Id$
- * Last Committed Date: $Date$
- * Last Committed Path: $HeadURL$
- * Current Revision:::: $Revision$
- * 
  * TODO: add proper headers for all methods
  * TODO: child lockfiles
  * TODO: check that the lockfile has the proper PID in it, die if not (another test for "sanity_check()").
@@ -14,7 +9,7 @@
  */
 
 
-abstract class multiThreadAbstract extends cs_versionAbstract {
+abstract class multiProcAbstract extends cs_versionAbstract {
 	
 	/** PID of the parent process. */
 	private $parentPid;

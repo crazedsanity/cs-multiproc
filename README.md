@@ -1,6 +1,8 @@
-PHP-Based Multi-Thread Libraries
-=================
+# PHP-Based Multi-Process Libraries
 
+NOTE::: this project was previously called "cs-multithread", but was renamed 
+due to the fact that it's actually for creating multiple processes (and PHP 
+can't actually handle threading).
 
 This library requires two classes from the cs-content system 
 (http://sf.net/projects/cs-content):
@@ -10,8 +12,8 @@ This library requires two classes from the cs-content system
 
   
   
-When building libraries using cs-multiThread, it is important to understand the 
-ideology of it: a main script (parent) is written that implements cs-multiThread 
+When building libraries using CS Multi-Proc, it is important to understand the 
+ideology of it: a main script (parent) is written that implements CS Multi-Proc 
 and is used to run external scripts (children).  The theory is as follows:
 
 PARENT
@@ -33,13 +35,12 @@ simply monitor the child processes, spawning a limited number of them and
 spawning more as needed: the child process are set to run a limited set of 
 data and then die.  
 
-OLD METHOD
-----------
+## OLD METHOD
 
 One script handles everything, executing one part of the script only if it is 
 the parent, running the other part if it is a child.  All logic is contained 
 within one script (and thus MUST be PHP).  The original concept for this lib 
-was to be a multi-threaded inventory processing system to more efficiently 
+was to be a multiple process inventory processing system to more efficiently 
 handle massive inventory updates spread across hundreds of files (each file 
 containing from just a few to several million lines).
 
@@ -48,8 +49,7 @@ As each one dies (indicating the file is completed), the parent handles cleanup
 and then spawns another child for the next file (if there isn't anymore, it scans 
 for new ones until all children are dead & no more files are left to process).
 
-NEW METHOD
-----------
+## NEW METHOD
 
 The main difference between the old method and the new one is where the code is
 stored.  In the old method, all code had to be stored in the main script, and 
