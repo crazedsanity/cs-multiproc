@@ -1,6 +1,15 @@
 #!/usr/bin/perl
 
 use overload q(<) => sub {};
+
+print STDERR "ARG0: ". $ARGV[0] ."\n";
+print STDERR "ARG1: ". $ARGV[1] ."\n";
+
+$prefix = "";
+if(length($ARGV[0])) {
+	$prefix = "[". $ARGV[0] ."] -- ";
+}
+
 my %h;
 print STDERR __FILE__ .": Error #1: (testing)\n";
 #for (my $i=0; $i<50000; $i++) {
@@ -17,19 +26,19 @@ for (my $i=0; $i<$maxLoops; $i++) {
 	$printThis = $x ." - #". $i ."\n";
 	
 	if($i == 3 || $i == 10 || $i == 83) {
-		print STDERR "(ERROR) ". $printThis;
+		print STDERR $prefix ."(ERROR) ". $printThis;
 	}
 	else {
-		print STDOUT $printThis;
+		print STDOUT $prefix . $printThis;
 	}
 	sleep(1);
 }
 
 $date = `date`;
 chomp($date);
-print STDOUT $date ." -- ". __FILE__ .": OUTPUT: '<--Testing data cleansing...\n";
+print STDOUT $prefix . $date ." -- ". __FILE__ .": OUTPUT: '<--Testing data cleansing...\n";
 
 $date = `date`;
 chomp($date);
-print STDERR $date ." -- ". __FILE__ .": Error #2: Script failed (testing)\n";
+print STDERR $prefix . $date ." -- ". __FILE__ .": Error #2: Script failed (testing)\n";
 exit 5;

@@ -6,17 +6,17 @@ $USAGE = 'USAGE: '. basename($_SERVER['argv'][0]) .' "" /usr/bin/perl ./test.pl 
 if($_SERVER['argc'] >= 3) {
 	$bits = $_SERVER['argv'];
 	unset($bits[0], $bits[1]);
-	$script = implode(' ', $bits);
+	$testScript = implode(' ', $bits);
 }
 else {
 	echo $USAGE;
 	exit($E_BADARGS);
 }
 print_r($_SERVER['argv']);
-echo $script ."\n\n";
+echo $testScript ."\n\n";
 
 require_once(dirname(__FILE__) .'/../cs_SingleProcess.class.php');
-$p = new cs_SingleProcess($script);
+$p = new cs_SingleProcess($testScript);
 
 $maxLoops = 300;
 $loops = 0;

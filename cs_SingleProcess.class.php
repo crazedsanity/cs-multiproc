@@ -12,6 +12,7 @@ class cs_SingleProcess {
 	public $error;
 	public $timeout;
 	public $start_time;
+	public $command;
 
 	public function __construct($command) {
 		$this->process = 0;
@@ -28,20 +29,29 @@ class cs_SingleProcess {
 			1 => array("pipe", "w"),
 			2 => array("pipe", "w"),
 		);
+		$this->command = $command;
 		$this->process = proc_open($command, $descriptor, $this->pipes);
 		
 		//set stuff so it's non-blocking.
 		stream_set_blocking($this->pipes[1], 0);
 		stream_set_blocking($this->pipes[2], 0);
+		
+//		while($this->isActive()) {
+//			$this->listen();
+//			$this->getError();
+//		}
 	}//end __construct()
 	
 	
 	
 	//See if the command is still active
 	function isActive() {
-		$this->buffer .= $this->listen();
-		$f = stream_get_meta_data($this->pipes[1]);
-		return !$f["eof"];
+		$info = $this->getStatus();
+		
+		return $info['running'];
+//		$this->buffer .= $this->listen();
+//		$f = stream_get_meta_data($this->pipes[1]);
+//		return !$f["eof"];
 	}//end isActive()
 	
 	
@@ -85,7 +95,8 @@ class cs_SingleProcess {
 	
 	//See if the command is taking too long to run (more than $this->timeout seconds)
 	function isBusy() {
-		return ( $this->start_time > 0 ) && ( $this->start_time + $this->timeout < time() );
+		$retval = ( $this->start_time > 0 ) && ( $this->start_time + $this->timeout < time() );
+		return $retval;
 	}//end isBusy()
 	
 	
