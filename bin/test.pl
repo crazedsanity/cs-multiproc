@@ -10,15 +10,14 @@ if(length($ARGV[0])) {
 	$prefix = "[". $ARGV[0] ."] -- ";
 }
 
+$maxLoops=10;
+if(length($ARGV[1])) {
+	$maxLoops = $ARGV[1];
+}
+
 my %h;
 print STDERR __FILE__ .": Error #1: (testing)\n";
-#for (my $i=0; $i<50000; $i++) {
-#	$h{$i} = bless [ ] => 'main';
-#	print STDOUT '.' if $i % 1000 == 0;
-#}
-#sleep(2);
 
-$maxLoops=10;
 
 for (my $i=0; $i<$maxLoops; $i++) {
 	$x = `date`;
@@ -28,9 +27,7 @@ for (my $i=0; $i<$maxLoops; $i++) {
 	if($i == 3 || $i == 10 || $i == 83) {
 		print STDERR $prefix ."(ERROR) ". $printThis;
 	}
-	else {
-		print STDOUT $prefix . $printThis;
-	}
+	print STDOUT $prefix . $printThis;
 	sleep(1);
 }
 

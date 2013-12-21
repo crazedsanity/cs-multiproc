@@ -17,6 +17,7 @@ echo $testScript ."\n\n";
 
 require_once(dirname(__FILE__) .'/../cs_SingleProcess.class.php');
 $p = new cs_SingleProcess($testScript);
+$p->poll();
 
 $maxLoops = 300;
 $loops = 0;
@@ -26,6 +27,7 @@ while($loops < $maxLoops && $p->isActive()) {
 	echo " ---------------- \n";
 	
 	$status = $p->getStatus();
+	$p->poll();
 	$error = $p->getError();
 	$output = $p->listen();
 	
@@ -49,6 +51,9 @@ print_r($p);
 
 if($loops >= $maxLoops) {
 	echo "TERMINATING TEST PROCESS... ";
-	$res = proc_terminate($p->process);
+	$res = $p->terminate();
 	echo "Result=(". $res .")\n";
 }
+
+echo "FINAL REPORT:::: ";
+echo $p->getFinalReport() ."\n\n";

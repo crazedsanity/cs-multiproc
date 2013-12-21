@@ -5,110 +5,247 @@
 
 class cs_SingleProcess {
 
-	public $process; // process reference
-	public $pipes; // stdio
-	public $buffer; // output buffer
-	public $output;
-	public $error;
-	public $timeout;
-	public $start_time;
-	public $command;
-
+	protected $_process; // process reference
+	protected $_pipes; // stdio
+	protected $_buffer; // output buffer
+	protected $_output;
+	protected $_error;
+	protected $_timeout;
+	protected $_startTime;
+	protected $_command;
+	protected $_lastStatus;
+	protected $_lastOutput;
+	protected $_lastError;
+	protected $_lastType;	// last type of output found (STDERR/STDOUT)
+	protected $_allOutput;	//all output, xml-style, wrapped in type (etc)
+	protected $_exitCode=null;
+	
+	const STDIN=0;
+	const STDOUT=1;
+	const STDERR=2;
+	
+	protected $typeMap = array(
+		self::STDIN		=> 'stdin',
+		self::STDOUT	=> 'stdout',
+		self::STDERR	=> 'stderr',
+	);
+	
+	//-------------------------------------------------------------------------
 	public function __construct($command) {
-		$this->process = 0;
-		$this->buffer = "";
-		$this->pipes = (array) NULL;
-		$this->output = "";
-		$this->error = "";
+		$this->_process = 0;
+		$this->_buffer = "";
+		$this->_pipes = (array) NULL;
+		$this->_output = "";
+		$this->_error = "";
 
-		$this->start_time = time();
-		$this->timeout = 0;
+		$this->_startTime = time();
+		$this->_timeout = 0;
 		
 		$descriptor = array(
-			0 => array("pipe", "r"),
-			1 => array("pipe", "w"),
-			2 => array("pipe", "w"),
+			self::STDIN => array("pipe", "r"),
+			self::STDOUT => array("pipe", "w"),
+			self::STDERR => array("pipe", "w"),
 		);
-		$this->command = $command;
-		$this->process = proc_open($command, $descriptor, $this->pipes);
+		$this->_command = $command;
+		$this->_process = proc_open($command, $descriptor, $this->_pipes);
 		
 		//set stuff so it's non-blocking.
-		stream_set_blocking($this->pipes[1], 0);
-		stream_set_blocking($this->pipes[2], 0);
-		
-//		while($this->isActive()) {
-//			$this->listen();
-//			$this->getError();
-//		}
+		stream_set_blocking($this->_pipes[1], 0);
+		stream_set_blocking($this->_pipes[2], 0);
 	}//end __construct()
+	//-------------------------------------------------------------------------
 	
 	
 	
-	//See if the command is still active
-	function isActive() {
-		$info = $this->getStatus();
+	//-------------------------------------------------------------------------
+	public function __get($name) {
+		$retval = null;
+		switch($name) {
+			case 'output':
+				$retval = $this->_output;
+				break;
+			case 'error':
+				$retval = $this->_error;
+				break;
+			case 'startTime':
+			case 'start_time':
+				$retval = $this->_startTime;
+				break;
+			case 'command':
+				$retval = $this->_command;
+				break;
+			case 'pid':
+				$data = $this->getStatus();
+				$retval = $data['pid'];
+				break;
+			default:
+				throw new exception(__METHOD__ .': unknown property "'. $name .'"');
+		}
 		
+		return $retval;
+	}//end __get()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	public function __set($name, $value) {
+		$retval = null;
+		
+		switch($name) {
+			case 'timeout':
+				$this->_timeout = $value;
+				break;
+			default:
+				throw new exception(__METHOD__ .': cannot set property "'. $name .'"');
+		}
+		
+		return $retval;
+	}//end __set()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	//See if the command is still active
+	public function isActive() {
+		$info = $this->getStatus();
 		return $info['running'];
-//		$this->buffer .= $this->listen();
-//		$f = stream_get_meta_data($this->pipes[1]);
-//		return !$f["eof"];
 	}//end isActive()
+	//-------------------------------------------------------------------------
 	
 	
 	
+	//-------------------------------------------------------------------------
 	//Close the process
-	function close() {
-		$r = proc_close($this->process);
-		$this->process = NULL;
+	public function close() {
+		$r = proc_close($this->_process);
+		$this->_process = NULL;
 		return $r;
 	}//end close()
+	//-------------------------------------------------------------------------
 	
 	
 	
+	//-------------------------------------------------------------------------
+	public function terminate($signal=null) {
+		$r = proc_terminate($this->_process, $signal);
+		return $r;
+	}//end terminate()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
 	//Send a message to the command running
-	function tell($thought) {
-		fwrite($this->pipes[0], $thought);
+	public function tell($thought) {
+		fwrite($this->_pipes[0], $thought);
 	}//end tell()
+	//-------------------------------------------------------------------------
 	
 	
 	
-	//Get the command output produced so far
-	function listen() {
-		$buffer = $this->buffer;
-		$this->buffer = "";
-		while ($r = fgets($this->pipes[1], 1024)) {
-			$buffer .= $r;
-			$this->output.=$r;
+	//-------------------------------------------------------------------------
+	public function poll() {
+		while ($r = fgets($this->_pipes[2], 1024)) {
+			$this->_appendAllOutput($r, self::STDERR);
+			$this->_error .= $r;
+			$this->_lastError .= $r;
 		}
-		echo $r;
-		return $buffer;
+		while ($r = fgets($this->_pipes[1], 1024)) {
+			$this->_appendAllOutput($r, self::STDOUT);
+			$this->_output.=$r;
+			$this->_lastOutput .= $r;
+		}
+	}//end poll()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	protected function _appendAllOutput($output=null, $type=null) {
+		if(!is_null($output) && strlen($output)) {
+			if(is_null($type)) {
+				throw new exception(__METHOD__ .": invalid type, unable to append");
+			}
+			$tagName = $this->typeMap[$type];
+			$this->_allOutput .= "\t<". $tagName .'time="'. microtime(true) .'">'. 
+				htmlentities($output) . '</'. $tagName .">\n";
+		}
+		$this->_lastType = $type;
+	}//end _appendAllOutput()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	//Get the command output produced so far
+	public function listen() {
+		$this->poll();
+		$retval = $this->_lastOutput;
+		$this->_lastOutput = "";
+		return $retval;
 	}//end listen()
+	//-------------------------------------------------------------------------
 	
 	
 	
+	//-------------------------------------------------------------------------
 	//Get the status of the current runing process
-	function getStatus() {
-		return proc_get_status($this->process);
+	public function getStatus() {
+		$this->_lastStatus = proc_get_status($this->_process);	
+		if($this->_lastStatus['running'] === FALSE && $this->_exitCode === NULL) {
+			$this->_exitCode = $this->_lastStatus['exitcode'];
+		}
+		return $this->_lastStatus;
 	}//end getStatus()
+	//-------------------------------------------------------------------------
 	
 	
 	
+	//-------------------------------------------------------------------------
 	//See if the command is taking too long to run (more than $this->timeout seconds)
-	function isBusy() {
-		$retval = ( $this->start_time > 0 ) && ( $this->start_time + $this->timeout < time() );
+	public function isBusy() {
+		$retval = ( $this->_startTime > 0 ) && ( $this->_startTime + $this->_timeout < time() );
 		return $retval;
 	}//end isBusy()
+	//-------------------------------------------------------------------------
 	
 	
 	
+	//-------------------------------------------------------------------------
 	//What command wrote to STDERR
-	function getError() {
-		$buffer = "";
-		while ($r = fgets($this->pipes[2], 1024)) {
-			$buffer .= $r;
-			$this->error .= $r;
-		}
-		return $buffer;
+	public function getError() {
+		$this->poll();
+		$retval = $this->_lastError;
+		$this->_lastError = "";
+		return $retval;
 	}//end getError()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	public function getFinalReport() {
+		$this->getStatus();
+		$report = '<processData>' ."\n\t";
+		
+		$myStatus = $this->_lastStatus;
+		foreach($myStatus as $index=>$value) {
+			if($index == 'exitcode') {
+				$value = $this->_exitCode;
+			}
+			if(strlen($value)) {
+				$report .= "\n\t<". $index .'>'. $value .'</'. $index .'>';
+			}
+			else {
+				$report .= "\n\t<". $index ." />";
+			}
+		}
+		$report .= $this->_allOutput ."\n" .'</processData>';
+		
+		return $report;
+	}//end getFinalReport()
+	//-------------------------------------------------------------------------
 	
 }
