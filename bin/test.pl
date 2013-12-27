@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 
-use overload q(<) => sub {};
+#TODO: support "-h" and "--help" options, and print out usage.
+#USAGE: ./test.pl [prefix] [loops]
 
-print STDERR "ARG0: ". $ARGV[0] ."\n";
-print STDERR "ARG1: ". $ARGV[1] ."\n";
+use overload q(<) => sub {};
 
 $prefix = "";
 if(length($ARGV[0])) {
@@ -37,5 +37,5 @@ print STDOUT $prefix . $date ." -- ". __FILE__ .": OUTPUT: '<--Testing data clea
 
 $date = `date`;
 chomp($date);
-print STDERR $prefix . $date ." -- ". __FILE__ .": Error #2: Script failed (testing)\n";
+print STDERR $prefix . $date ." -- ". __FILE__ .": Error #2: Script error (testing)\n";
 exit 5;

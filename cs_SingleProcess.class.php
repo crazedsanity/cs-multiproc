@@ -12,6 +12,7 @@ class cs_SingleProcess {
 	protected $_error;
 	protected $_timeout;
 	protected $_startTime;
+	protected $_endTime;
 	protected $_command;
 	protected $_lastStatus;
 	protected $_lastOutput;
@@ -19,6 +20,7 @@ class cs_SingleProcess {
 	protected $_lastType;	// last type of output found (STDERR/STDOUT)
 	protected $_allOutput;	//all output, xml-style, wrapped in type (etc)
 	protected $_exitCode=null;
+	protected $_version;
 	
 	const STDIN=0;
 	const STDOUT=1;
@@ -31,28 +33,39 @@ class cs_SingleProcess {
 	);
 	
 	//-------------------------------------------------------------------------
-	public function __construct($command) {
+	public function __construct() {
 		$this->_process = 0;
 		$this->_buffer = "";
 		$this->_pipes = (array) NULL;
 		$this->_output = "";
 		$this->_error = "";
 
-		$this->_startTime = time();
 		$this->_timeout = 0;
 		
+		$this->_version = new cs_version(dirname(__FILE__) .'/VERSION');
+		
+	}//end __construct()
+	//-------------------------------------------------------------------------
+	
+	
+	
+	//-------------------------------------------------------------------------
+	public function run($command) {
+		$this->_command = $command;
 		$descriptor = array(
 			self::STDIN => array("pipe", "r"),
 			self::STDOUT => array("pipe", "w"),
 			self::STDERR => array("pipe", "w"),
 		);
-		$this->_command = $command;
-		$this->_process = proc_open($command, $descriptor, $this->_pipes);
+		
+		
+		$this->_startTime = microtime(true);
+		$this->_process = proc_open($this->command, $descriptor, $this->_pipes);
 		
 		//set stuff so it's non-blocking.
 		stream_set_blocking($this->_pipes[1], 0);
 		stream_set_blocking($this->_pipes[2], 0);
-	}//end __construct()
+	}//end run()
 	//-------------------------------------------------------------------------
 	
 	
@@ -77,6 +90,12 @@ class cs_SingleProcess {
 			case 'pid':
 				$data = $this->getStatus();
 				$retval = $data['pid'];
+				break;
+			case 'project':
+				$retval = $this->_version->get_project();
+				break;
+			case 'version':
+				$retval = $this->_version->get_version();
 				break;
 			default:
 				throw new exception(__METHOD__ .': unknown property "'. $name .'"');
@@ -164,12 +183,13 @@ class cs_SingleProcess {
 	
 	//-------------------------------------------------------------------------
 	protected function _appendAllOutput($output=null, $type=null) {
+		$output = rtrim($output);
 		if(!is_null($output) && strlen($output)) {
 			if(is_null($type)) {
 				throw new exception(__METHOD__ .": invalid type, unable to append");
 			}
 			$tagName = $this->typeMap[$type];
-			$this->_allOutput .= "\t<". $tagName .'time="'. microtime(true) .'">'. 
+			$this->_allOutput .= "\t<". $tagName .' time="'. microtime(true) .'">'. 
 				htmlentities($output) . '</'. $tagName .">\n";
 		}
 		$this->_lastType = $type;
@@ -196,6 +216,7 @@ class cs_SingleProcess {
 		$this->_lastStatus = proc_get_status($this->_process);	
 		if($this->_lastStatus['running'] === FALSE && $this->_exitCode === NULL) {
 			$this->_exitCode = $this->_lastStatus['exitcode'];
+			$this->_endTime = microtime(true);
 		}
 		return $this->_lastStatus;
 	}//end getStatus()
@@ -242,7 +263,17 @@ class cs_SingleProcess {
 				$report .= "\n\t<". $index ." />";
 			}
 		}
-		$report .= $this->_allOutput ."\n" .'</processData>';
+		$report .= "\n\t<start_time>". $this->_startTime ."</start_time>";
+		$report .= "\n\t<end_time>". $this->_endTime ."</end_time>";
+		$report .= "\n\t<total_time>". number_format(($this->_endTime - $this->_startTime), 2) ."</total_time>\n";
+		
+		if(strlen($this->_allOutput)) {
+			$report .= "<all_output>\n". $this->_allOutput ."\n</all_output>";
+		}
+		else {
+			$report .= "<all_output />";
+		}
+		$report .= "\n</processData>";
 		
 		return $report;
 	}//end getFinalReport()
