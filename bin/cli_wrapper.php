@@ -78,23 +78,6 @@ if(count($options)) {
 }
 
 
-//print_r($_SERVER['argv']);
-//echo "ACTUAL SCRIPT: ". $actualScript ."\n\n";
-//echo "GOING TO RUN:: ". $testScript ."\n\n";
-//
-//
-//
-//exit;
-////NOTE::: checking if the file exists doesn't work when it's relative, like 
-//if(!file_exists($actualScript)) {
-//	fwrite(STDERR, "FATAL: command or script (". $actualScript .") does not exist\n". $USAGE);
-//}
-//else {
-//	echo "file exists!\n\n";
-//}
-
-//exit;
-
 $p->run($testScript);
 $p->poll();
 
@@ -115,12 +98,6 @@ while ($loops < $maxLoops && $p->isActive()) {
 	$loops++;
 }
 $p->poll();
-
-//echo "FINAL STATUS: ". print_r($p->getStatus(),true) ."\n";
-//echo "FINAL OUTPUT: ". $p->output ."\n";
-//echo "FINAL ERROR: ". $p->error ."\n";
-
-//print_r($p);
 
 if($loops >= $maxLoops) {
 	echo "TERMINATING TEST PROCESS (". $loops ." > ". $maxLoops .")... ";
