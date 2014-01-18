@@ -1,8 +1,8 @@
 {
 	"name":	"crazedsanity/cs-multiproc",
 	"type": "library",
-	"description": "Web application framework containing various libraries, an extension to cs-content",
-	"keywords": ["php", "web", "database", "api", "auth", "token", "lockfile", "permission", "siteconfig", "logging", "upgrades"],
+	"description": "Framework for watching processes and daemonization, an extension to cs-content",
+	"keywords": ["php", "process", "multiproc", "smp", "thread"],
 	"homepage": "https://github.com/crazedsanity/cs-multiproc",
 	"license": "MIT",
 	"version": "0.3.4",
