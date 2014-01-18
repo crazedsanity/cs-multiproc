@@ -12,13 +12,18 @@ class cs_MultiProcess {
 	var $thread = array();
 	var $commands = array();
 
-	function __construct($commands) {
-		$this->commands = $commands;
+	function __construct(array $commands) {
+		if(is_array($commands) && count($commands)) {
+			$this->commands = $commands;
 
-		foreach ($this->commands as $key => $command) {
-			$this->thread[$key] = new cs_SingleProcess($command); //Thread::create($command);
-			$this->output[$key] = null;
-			$this->error[$key] = null;
+			foreach ($this->commands as $key => $command) {
+				$this->thread[$key] = new cs_SingleProcess($command); //Thread::create($command);
+				$this->output[$key] = null;
+				$this->error[$key] = null;
+			}
+		}
+		else {
+			throw new InvalidArgumentException(__METHOD__ .": no arguments");
 		}
 	}
 

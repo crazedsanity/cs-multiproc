@@ -15,31 +15,31 @@ class cs_SingleProcess {
 	public $command;
 
 	public function __construct($command) {
-		$this->process = 0;
-		$this->buffer = "";
-		$this->pipes = (array) NULL;
-		$this->output = "";
-		$this->error = "";
+		if(!is_null($command) && strlen($command))  {
+			$this->process = 0;
+			$this->buffer = "";
+			$this->pipes = (array) NULL;
+			$this->output = "";
+			$this->error = "";
 
-		$this->start_time = time();
-		$this->timeout = 0;
-		
-		$descriptor = array(
-			0 => array("pipe", "r"),
-			1 => array("pipe", "w"),
-			2 => array("pipe", "w"),
-		);
-		$this->command = $command;
-		$this->process = proc_open($command, $descriptor, $this->pipes);
-		
-		//set stuff so it's non-blocking.
-		stream_set_blocking($this->pipes[1], 0);
-		stream_set_blocking($this->pipes[2], 0);
-		
-//		while($this->isActive()) {
-//			$this->listen();
-//			$this->getError();
-//		}
+			$this->start_time = time();
+			$this->timeout = 0;
+
+			$descriptor = array(
+				0 => array("pipe", "r"),
+				1 => array("pipe", "w"),
+				2 => array("pipe", "w"),
+			);
+			$this->command = $command;
+			$this->process = proc_open($command, $descriptor, $this->pipes);
+
+			//set stuff so it's non-blocking.
+			stream_set_blocking($this->pipes[1], 0);
+			stream_set_blocking($this->pipes[2], 0);
+		}
+		else {
+			throw new InvalidArgumentException(__METHOD__ .": no command");
+		}
 	}//end __construct()
 	
 	
@@ -49,9 +49,6 @@ class cs_SingleProcess {
 		$info = $this->getStatus();
 		
 		return $info['running'];
-//		$this->buffer .= $this->listen();
-//		$f = stream_get_meta_data($this->pipes[1]);
-//		return !$f["eof"];
 	}//end isActive()
 	
 	

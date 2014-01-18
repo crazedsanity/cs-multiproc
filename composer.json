@@ -1,0 +1,22 @@
+{
+	"name":	"crazedsanity/cs-multiproc",
+	"type": "library",
+	"description": "Web application framework containing various libraries, an extension to cs-content",
+	"keywords": ["php", "web", "database", "api", "auth", "token", "lockfile", "permission", "siteconfig", "logging", "upgrades"],
+	"homepage": "https://github.com/crazedsanity/cs-multiproc",
+	"license": "MIT",
+	"version": "0.3.4",
+	"authors": [
+		{
+			"name":	"Dan Falconer",
+			"email": "github@crazedsanity.com",
+			"homepage": "http://www.crazedsanity.com",
+			"role": "Developer"
+		}
+	],
+	"require": {
+		"php": ">=5.3.0",
+		"crazedsanity/cs-content": ">=1.2.4"
+	},
+	"minimum-stability": "dev"
+}
