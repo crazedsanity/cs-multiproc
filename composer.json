@@ -1,11 +1,11 @@
 {
 	"name":	"crazedsanity/cs-multiproc",
 	"type": "library",
-	"description": "Framework for watching processes and daemonization, an extension to cs-content",
+	"description": "Framework for watching processes and daemonization",
 	"keywords": ["php", "process", "multiproc", "smp", "thread"],
 	"homepage": "https://github.com/crazedsanity/cs-multiproc",
 	"license": "MIT",
-	"version": "0.3.4",
+	"version": "0.3.5",
 	"authors": [
 		{
 			"name":	"Dan Falconer",
@@ -14,9 +14,5 @@
 			"role": "Developer"
 		}
 	],
-	"require": {
-		"php": ">=5.3.0",
-		"crazedsanity/cs-content": ">=1.2.4"
-	},
 	"minimum-stability": "dev"
 }
