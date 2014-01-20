@@ -6,11 +6,13 @@ class MultiProcessTest extends PHPUnit_Framework_TestCase {
 	public function tearDown(){}
 	
 	
-	/**
-	 * @expectedException InvalidArgumentException
-	 */
 	public function test_invalidArguments() {
-		new cs_MultiProcess(array());
+		try {
+			new cs_MultiProcess(array());
+		}
+		catch(Exception $ex) {
+			$this->fail("An unexpected exception was thrown::: ". $ex->getMessage());
+		}
 	}
 }
 

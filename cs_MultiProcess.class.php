@@ -7,12 +7,19 @@
 
 class cs_MultiProcess {
 
-	var $output = array();
-	var $error = array();
-	var $thread = array();
-	var $commands = array();
+	protected $output = array();
+	protected $error = array();
+	protected $thread = array();
+	protected $commands = array();
+	protected $newCommands = array();
 
 	function __construct(array $commands) {
+		$this->addCommands($commands);
+	}
+	
+	
+	public function addCommands(array $commands) {
+		
 		if(is_array($commands) && count($commands)) {
 			$this->commands = $commands;
 
@@ -21,9 +28,6 @@ class cs_MultiProcess {
 				$this->output[$key] = null;
 				$this->error[$key] = null;
 			}
-		}
-		else {
-			throw new InvalidArgumentException(__METHOD__ .": no arguments");
 		}
 	}
 
@@ -35,33 +39,14 @@ class cs_MultiProcess {
 				//Get the output and the errors
 				$myOut = $this->thread[$key]->listen();
 				$this->output[$key].=$myOut;
-//				if($printOutput && strlen($myOut)) {
-//					echo "    ". $myOut;
-//				}
 				
 				$myErr = $this->thread[$key]->getError();
 				$this->error[$key].=$myErr;
-//				if($printOutput && strlen($myErr)) {
-//					echo "    ". $myErr ."\n";
-//				}
 				
 				//Check if command is still active
 				if ($this->thread[$key]->isActive()) {
 					$myOut = $this->thread[$key]->listen();
 					$this->output[$key].=$myOut;
-//					if($printOutput && strlen($myOut)) {
-//						echo "    ". $myOut;
-//					}
-					
-//					//Check if command is busy
-//					if ($this->thread[$key]->isBusy()) {
-//						$this->thread[$key]->close();
-//						
-//						if($printOutput) {
-//							echo "Closed busy process (". $key ."), command:: ". $commands[$key] ."\n";
-//						}
-//						unset($commands[$key]);
-//					}
 				} else {
 					//Close the command and free resources
 					$this->thread[$key]->close();
@@ -71,6 +56,12 @@ class cs_MultiProcess {
 						echo "thread #". $key ." is done...\n";
 					}
 				}
+			}
+			
+			//add any new commands before running through another loop.
+			if(is_array($this->newCommands) && count($this->newCommands)) {
+				$this->commands = array_merge($this->commands, $this->newCommands);
+				$this->newCommands = array();
 			}
 		}
 		
