@@ -13,7 +13,7 @@ class cs_MultiProcess {
 	protected $commands = array();
 	protected $newCommands = array();
 
-	function __construct(array $commands) {
+	function __construct(array $commands=null) {
 		$this->addCommands($commands);
 	}
 	
